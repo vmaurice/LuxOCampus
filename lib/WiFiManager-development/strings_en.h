@@ -36,7 +36,8 @@ const char * const HTTP_PORTAL_MENU[] PROGMEM = {
 "<form action='/restart' method='get'><button>Restart</button></form><br/>\n",// MENU_RESTART
 "<form action='/exit'    method='get'><button>Exit</button></form><br/>\n",  // MENU_EXIT
 "<form action='/erase'   method='get'><button class='D'>Erase</button></form><br/>\n", // MENU_ERASE
-"<hr><br/>" // MENU_SEP
+"<hr><br/>", // MENU_SEP
+"<form action='/notice'  method='get'><button>Notice</button></form><br/>\n" // MENU_NOTICE by vmaurice
 };
 
 // const char HTTP_PORTAL_OPTIONS[]   PROGMEM = strcat(HTTP_PORTAL_MENU[0] , HTTP_PORTAL_MENU[3] , HTTP_PORTAL_MENU[7]);
@@ -54,6 +55,8 @@ const char HTTP_FORM_END[]         PROGMEM = "<br/><br/><button type='submit'>Sa
 const char HTTP_FORM_LABEL[]       PROGMEM = "<label for='{i}'>{t}</label>";
 const char HTTP_FORM_PARAM_HEAD[]  PROGMEM = "<hr><br/>";
 const char HTTP_FORM_PARAM[]       PROGMEM = "<br/><input id='{i}' name='{n}' maxlength='{l}' value='{v}' {c}>";
+
+const char HTTP_FORM_NOTICE[]      PROGMEM = "<br/> <h1> Bienvenu sur ma super Notice </h1>"; // by vmaurice
 
 const char HTTP_SCAN_LINK[]        PROGMEM = "<br/><form action='/wifi?refresh=1' method='POST'><button name='refresh' value='1'>Refresh</button></form>";
 const char HTTP_SAVED[]            PROGMEM = "<div class='msg'>Saving Credentials<br/>Trying to connect ESP to network.<br />If it fails reconnect to AP to try again</div>";
@@ -215,6 +218,7 @@ const char S_uri[]                PROGMEM = "URI: ";
 const char S_method[]             PROGMEM = "\nMethod: ";
 const char S_args[]               PROGMEM = "\nArguments: ";
 const char S_parampre[]           PROGMEM = "param_";
+const char S_notice[]             PROGMEM = "notice"; // by vmaurice
 
 // debug strings
 const char D_HR[]                 PROGMEM = "--------------------";
@@ -225,8 +229,8 @@ const char D_HR[]                 PROGMEM = "--------------------";
 // -----------------------------------------------------------------------------------------------
 // DO NOT EDIT BELOW THIS LINE
 
-const uint8_t _nummenutokens = 9;
-const char * const _menutokens[9] PROGMEM = {
+const uint8_t _nummenutokens = 10;
+const char * const _menutokens[10] PROGMEM = {
     "wifi",
     "wifinoscan",
     "info",
@@ -235,7 +239,8 @@ const char * const _menutokens[9] PROGMEM = {
     "restart",
     "exit",
     "erase",
-    "sep"
+    "sep",
+    "notice" // by vmaurice
 };
 
 const char R_root[]               PROGMEM = "/";
@@ -250,6 +255,7 @@ const char R_exit[]               PROGMEM = "/exit";
 const char R_close[]              PROGMEM = "/close";
 const char R_erase[]              PROGMEM = "/erase"; 
 const char R_status[]             PROGMEM = "/status";
+const char R_notice[]             PROGMEM = "/notice"; // by vmaurice
 
 
 //Strings

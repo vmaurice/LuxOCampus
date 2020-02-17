@@ -497,6 +497,7 @@ void WiFiManager::setupConfigPortal() {
   server->on(String(FPSTR(R_close)).c_str(),      std::bind(&WiFiManager::handleClose, this));
   server->on(String(FPSTR(R_erase)).c_str(),      std::bind(&WiFiManager::handleErase, this, false));
   server->on(String(FPSTR(R_status)).c_str(),     std::bind(&WiFiManager::handleWiFiStatus, this));
+  server->on(String(FPSTR(R_notice)).c_str(),     std::bind(&WiFiManager::handleNotice, this)); // by vmaurice
   server->onNotFound (std::bind(&WiFiManager::handleNotFound, this));
   
   server->begin(); // Web server start
@@ -1314,6 +1315,21 @@ void WiFiManager::handleWiFiStatus(){
   #ifdef JSTEST
     page = FPSTR(HTTP_JS);
   #endif
+  server->sendHeader(FPSTR(HTTP_HEAD_CL), String(page.length()));
+  server->send(200, FPSTR(HTTP_HEAD_CT), page);
+}
+
+
+void WiFiManager::handleNotice(){  // by vmaurice
+  DEBUG_WM(DEBUG_VERBOSE,F("<- Notice"));
+
+  handleRequest();
+  String page = getHTTPHead(FPSTR(S_options)); // @token options
+
+  
+  page += FPSTR(HTTP_FORM_NOTICE);
+
+  page += FPSTR(HTTP_END);
   server->sendHeader(FPSTR(HTTP_HEAD_CL), String(page.length()));
   server->send(200, FPSTR(HTTP_HEAD_CT), page);
 }

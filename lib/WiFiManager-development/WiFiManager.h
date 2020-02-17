@@ -427,6 +427,7 @@ class WiFiManager
     void          handleRequest();
     void          handleParamSave();
     void          doParamSave();
+    void          handleNotice(); // by vmaurice
 
     boolean       captivePortal();
     boolean       configPortalHasTimeout();
