@@ -5,9 +5,9 @@
 
 #include <ArduinoJson.h>
 
+#include <google_credentials.h>
 
-String client_id = "569902583187-t5trsl9osrndemokbgcne8s83o9ibmul.apps.googleusercontent.com";
-String client_secret = "hfZ920yJ8owIawWlUvJfAGTY";
+
 String url_google;
 String user_code;
 String device_code;
@@ -70,7 +70,10 @@ HttpResponse httpGet(String url) {
   return request;
 }
 
-
+/*
+ La méthode n'est pas utilisé
+ mais je la laisse pour le moment car elle est détaille le processus de d'authentification
+*/
 void setup_google(WiFiServer server, WiFiClient client) {
     HTTPClient http;
 

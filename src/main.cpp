@@ -142,7 +142,7 @@ void loop() {
               client.print("<a target=\"_blank\" href=\"" + url_google + "\"> Se connecter a Google. </a><br>");
               client.print("<p> code a copier : " + user_code + "</p><br></br>");
 
-              client.print("<a href=\"/result\"> Resultat </a></br>");
+              client.print("<a href=\"/result\"> Clique ici après avoir autorise le compte pour voir les 10 porchains evenements de ton calendrier principal </a></br>");
 
 
             } else if (header.indexOf("GET /result") >= 0) {
