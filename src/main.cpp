@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
+#include <ESPmDNS.h>
 
 WiFiManager wm; // global wm instance
 const char* ssid = "ESP32";
@@ -28,6 +29,14 @@ DynamicJsonDocument jsonConnect(capacity);
 
 const size_t capacity2 = JSON_OBJECT_SIZE(5) + 400;
 DynamicJsonDocument jsonToken(capacity2);
+
+
+//const size_t capacity3 = JSON_ARRAY_SIZE(0) + JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(2) + 3*JSON_OBJECT_SIZE(1) + 8*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(8) + 2*JSON_OBJECT_SIZE(16) + 2048;
+DynamicJsonDocument jsonCalendar(20000);
+
+DynamicJsonDocument jsonCalendarList(8192);
+
+DynamicJsonDocument jsonColor(4096);
 
 
 void setup() {
@@ -64,18 +73,17 @@ void setup() {
 
 
   if(!wm.autoConnect(ssid)) {
-    Serial.println("failed to connect and hit timeout");
-  }
-  else if(TEST_CP) {
     delay(1000);
-    Serial.println("TEST_CP ENABLED");
-    // start configportal always
-    wm.setConfigPortalTimeout(180);
     wm.startConfigPortal(ssid);
   }
-  else {
-    //if you get here you have connected to the WiFi
-     Serial.println("connected...yeey :)");
+  
+  //if you get here you have connected to the WiFi
+  Serial.println("connected...yeey :)");
+  if (!MDNS.begin("esp32")) {
+    Serial.println("Error setting up MDNS responder!");
+    while(1){
+      delay(1000);
+    }
   }
 
   server.begin();
@@ -110,7 +118,7 @@ void loop() {
             // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
             // and a content-type so the client knows what's coming, then a blank line:
             client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
+            client.println("Content-type:text/html; charset=UTF-8");
             client.println();
 
             if (header.indexOf("GET /google") >= 0) {
@@ -177,13 +185,85 @@ void loop() {
                 Serial.println(access_token);
               }
 
+              // Récupère la liste des agendas
+
+
+              request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
+
+              
+              // Deserialize the JSON document
+              DeserializationError error = deserializeJson(jsonCalendarList, request.httpResponse);
+
+              // Test if parsing succeeds.
+              if (error) {
+                Serial.print(F("deserializeJson() failed: "));
+                Serial.println(error.c_str());
+                return;
+              }
+
+              JsonArray arr = jsonCalendarList["items"].as<JsonArray>();
+              for (JsonVariant value : arr) {
+                client.print("Id : " + value["id"].as<String>() + " = " + value["summary"].as<String>() + ", colorId =  " + value["colorId"].as<String>() + "</br>");
+              }
+
+
+              // Récupère les couleurs
+
+
+              request = httpGet("https://www.googleapis.com/calendar/v3/colors?access_token=" + access_token);
+
+              // Deserialize the JSON document
+              error = deserializeJson(jsonColor, request.httpResponse);
+
+              // Test if parsing succeeds.
+              if (error) {
+                Serial.print(F("deserializeJson() failed: "));
+                Serial.println(error.c_str());
+                return;
+              }
+
+
+
+              // Affiche les évènements primaires
+
+              
+              client.print("<p> Les evenements </p></br>");
+              
               request = httpGet("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=2020-02-19T10:00:00Z&access_token=" + access_token);
 
-              client.print("<p> Les evenements </p></br>");
               client.print(request.httpResponse);
+
+              // Deserialize the JSON document
+              error = deserializeJson(jsonCalendar, request.httpResponse);
+
+              // Test if parsing succeeds.
+              if (error) {
+                Serial.print(F("deserializeJson() failed: "));
+                Serial.println(error.c_str());
+                return;
+              }
+
+              client.print("</br></br>");
+
+              String colorEvent;
+
+              arr = jsonCalendar["items"].as<JsonArray>();
+              for (JsonVariant value : arr) {
+                if (value.containsKey("colorId"))
+                  colorEvent = jsonColor["event"][value["colorId"].as<String>()]["background"].as<String>();
+                else {
+                  //colorEvent = jsonColor["calendar"][jsonCalendarList["items"][value["email"].as<String>()]["colorId"].as<String>()].as<String>()]["background"].as<String>();
+                }
+                client.print("<p style='color: " + colorEvent + "'>" + value["summary"].as<String>() + ", colorId =  " + colorEvent + "</p>");
+              }
             
+            } else if (header.indexOf("GET /disconnect") >= 0) {
+                //client.print("<p> L'ESP redemarre et va demarrer sur le portail pour se connecter de nouveau </p></br>");
+                wm.erase();
+                ESP.restart();
             } else {
-              client.print("<a href=\"/google\"> Se connecter à google </a></br>");
+              client.print("<a href=\"/google\"> Se connecter à google </a></br></br>");
+              client.print("<a href=\"/disconnect\"> Se déconnecter et redémarrer sur le portail captif </a></br>");
             }
 
             
