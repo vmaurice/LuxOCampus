@@ -11,13 +11,17 @@
 #include "time.h"
 
 const char *ntpServer = "0.fr.pool.ntp.org";
-const long gmtOffset_sec = 0;
-const int daylightOffset_sec = 0;
+//const long gmtOffset_sec = 0;
+//const int daylightOffset_sec = 0;
 const char* tz_info = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // https://remotemonitoringsystems.ca/time-zone-abbreviations.php
 
 // my include file
 #include "google.h"
 #include "fileJson.h"
+
+// EEPROM 
+#include <EEPROM.h>
+#define EEPROM_SIZE 256
 
 WiFiManager wm; // global wm instance
 const char *ssid = "ESP32";
@@ -29,7 +33,10 @@ HttpResponse request;
 
 String url;
 String access_token = "";
-//String refresh_token = "";
+String refresh_token = "";
+int expire = 0;
+
+long unsigned startTimeExpire;
 
 // Map between summary calendar and color
 std::map<String, String> mapSummaryColor;
@@ -91,11 +98,78 @@ void setup()
 	//start server
 	server.begin();
 	Serial.println("Server started");
+
+	if (!EEPROM.begin(EEPROM_SIZE))
+	{
+		Serial.println("failed to initialise EEPROM"); delay(100000);
+	}
+	
+	
+	refresh_token = EEPROM.readString(0);
+	if (refresh_token != "") {
+		Serial.println();
+		Serial.println("refresh token : ");
+		Serial.print(refresh_token);
+	}
+	
+
+	startTimeExpire = millis();
+	
 }
 
 void loop()
 {
 	// put your main code here, to run repeatedly:
+
+	if ( (millis() - startTimeExpire > (expire - 2000) && expire != 0) || ( expire == 0 && refresh_token != "" )) {
+		Serial.println();
+		Serial.println("Refresh token");
+		url = "client_id=" + client_id +
+				"&client_secret=" + client_secret +
+				"&refresh_token=" + refresh_token +
+				"&grant_type=refresh_token";
+
+		Serial.println(url);
+
+		request = httpPost("/token", url);
+
+		delay(1000);
+
+		if (request.httpResponseCode != 200) {
+			for (int i = 0 ; i < EEPROM_SIZE ; i++) {
+				EEPROM.write(i, 0);
+			}
+			EEPROM.commit();
+			ESP.restart();
+		}
+
+		// Deserialize the JSON document and Test if parsing succeeds.
+		checkJsonError(deserializeJson(googleToken, request.httpResponse));
+		
+		access_token = googleToken["access_token"].as<String>();
+		expire = googleToken["expires_in"].as<int>() * 1000;
+
+		startTimeExpire = millis();
+
+		Serial.println(access_token);
+		Serial.println(expire);
+
+		if (jsonColor.isNull()) {
+			// get the color
+
+			request = httpGet("https://www.googleapis.com/calendar/v3/colors?access_token=" + access_token);
+
+			// Deserialize the JSON document and Test if parsing succeeds.
+			checkJsonError(deserializeJson(jsonColor, request.httpResponse));
+
+			if (request.httpResponseCode != 200) {
+				Serial.println("Error request colors");
+				return;
+			}
+		}
+
+
+	}
 
 	WiFiClient client = server.available(); // listen for incoming clients
 
@@ -143,6 +217,8 @@ void loop()
 
 								request = httpPost("/device/code", url);
 
+								request.httpResponseCode = -1;
+
 								// Deserialize the JSON document and Test if parsing succeeds.
 								checkJsonError(deserializeJson(googleConnect, request.httpResponse));
 
@@ -179,9 +255,22 @@ void loop()
 								checkJsonError(deserializeJson(googleToken, request.httpResponse));
 
 								access_token = googleToken["access_token"].as<String>();
-								//refresh_token = googleToken["refresh_token"].as<String>();
+								refresh_token = googleToken["refresh_token"].as<String>();
+								expire = googleToken["expires_in"].as<int>() * 1000;
+
+								//Serial.println(sizeof(refresh_token.c_str()));
+
+								//EEPROM.writeInt(0, refresh_token.length());
+
+								EEPROM.writeString(0, refresh_token);
+								
+								EEPROM.commit();
+
+								startTimeExpire = millis();
 
 								Serial.println(access_token);
+								Serial.println(refresh_token);
+								Serial.println(expire);
 
 								// get the color
 
@@ -189,6 +278,11 @@ void loop()
 
 								// Deserialize the JSON document and Test if parsing succeeds.
 								checkJsonError(deserializeJson(jsonColor, request.httpResponse));
+
+								if (request.httpResponseCode != 200) {
+									Serial.println("Error request colors");
+									return;
+								}
 
 								client.print("<a href=\"/result\"> Clique ici pour voir les événements </a></br>");
 							}
@@ -229,6 +323,9 @@ void loop()
 
 										// Deserialize the JSON document and Test if parsing succeeds.
 										checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
+
+										request.httpResponseCode = -1;
+
 										arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
 
 										for (auto value : arrayCalendarList)
