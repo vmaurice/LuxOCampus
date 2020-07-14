@@ -6,12 +6,14 @@
 #include <map>
 #include <vector>
 
-// Define NTP Client to get time
-#include <NTPClient.h>
-#include <WiFiUdp.h>
+// Define time
+#include <ctime>
+#include "time.h"
 
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP);
+const char *ntpServer = "0.fr.pool.ntp.org";
+const long gmtOffset_sec = 0;
+const int daylightOffset_sec = 0;
+const char* tz_info = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // https://remotemonitoringsystems.ca/time-zone-abbreviations.php
 
 // my include file
 #include "google.h"
@@ -27,6 +29,7 @@ HttpResponse request;
 
 String url;
 String access_token = "";
+//String refresh_token = "";
 
 // Map between summary calendar and color
 std::map<String, String> mapSummaryColor;
@@ -80,9 +83,10 @@ void setup()
 		return;
 	}
 
-	//init and set the time
-	timeClient.begin();
-	timeClient.setTimeOffset(7200);
+	// Init the time
+	//configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+	//setenv("TZ", tz_info, 1);
+	configTzTime(tz_info, ntpServer);
 
 	//start server
 	server.begin();
@@ -96,15 +100,15 @@ void loop()
 	WiFiClient client = server.available(); // listen for incoming clients
 
 	if (client)
-	{																 // if you get a client,
+	{								   // if you get a client,
 		Serial.println("New Client."); // print a message out the serial port
-		String currentLine = "";			 // make a String to hold incoming data from the client
+		String currentLine = "";	   // make a String to hold incoming data from the client
 		while (client.connected())
 		{ // loop while the client's connected
 			if (client.available())
-			{													// if there's bytes to read from the client,
+			{							// if there's bytes to read from the client,
 				char c = client.read(); // read a byte, then
-				Serial.write(c);				// print it out the serial monitor
+				Serial.write(c);		// print it out the serial monitor
 				header += c;
 				if (c == '\n')
 				{ // if the byte is a newline character
@@ -123,8 +127,7 @@ void loop()
 
 						client.print("<h1 style=\"color:blue;text-align:center;\">LuxOCampus</h1>");
 
-						
-            // Authentification the esp32 with the google account
+						// Authentification the esp32 with the google account
 						if (header.indexOf("GET /google") >= 0)
 						{
 							// We now create a URI for the request
@@ -133,7 +136,7 @@ void loop()
 							{
 
 								url = "client_id=" + client_id +
-											"&scope=https://www.googleapis.com/auth/calendar.readonly";
+									  "&scope=https://www.googleapis.com/auth/calendar.readonly";
 
 								Serial.print("Requesting URL: ");
 								Serial.println(url);
@@ -157,9 +160,9 @@ void loop()
 								delay(10000);
 
 								url = "client_id=" + client_id +
-											"&client_secret=" + client_secret +
-											"&device_code=" + device_code +
-											"&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code";
+									  "&client_secret=" + client_secret +
+									  "&device_code=" + device_code +
+									  "&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code";
 
 								Serial.println(url);
 
@@ -176,6 +179,7 @@ void loop()
 								checkJsonError(deserializeJson(googleToken, request.httpResponse));
 
 								access_token = googleToken["access_token"].as<String>();
+								//refresh_token = googleToken["refresh_token"].as<String>();
 
 								Serial.println(access_token);
 
@@ -194,8 +198,7 @@ void loop()
 							}
 							client.print("<a href=\"/\"> Retour page accueil </a></br>");
 
-
-            // Print the events between 24h before and after of sub-calendars selected. If indArray is empty, all sub-calendars selected.
+							// Print the events between 24h before and after of sub-calendars selected. If indArray is empty, all sub-calendars selected.
 						}
 						else if (header.indexOf("GET /result") >= 0)
 						{
@@ -238,28 +241,41 @@ void loop()
 									Serial.println("Size indArray : " + (String)indArray.size());
 								}
 
-								// print the events between 24h before and 24h after of calendar selected
+								// print the events between 1 day before and 7 days after of calendar selected
 
-								while (!timeClient.update())
+								struct tm dateTime;
+
+								if (!getLocalTime(&dateTime))
 								{
-									timeClient.forceUpdate();
+									Serial.println("Failed to obtain time");
+									return;
 								}
 
-								String dateTime = timeClient.getFormattedDate();
-								String dateTimeMin = timeClient.getFormattedDate(timeClient.getEpochTime() - 86400);
-								String dateTimeMax = timeClient.getFormattedDate(timeClient.getEpochTime() + 86400);
+								auto dateMin = dateTime;
+								auto dateMax = dateTime;
 
-								client.print("<p> Les événements de " + dateTimeMin + " à " + dateTimeMax + "</p></br>");
+								dateMin.tm_mday -= 1;
+								dateMax.tm_mday += 7;
+
+								char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
+								strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &dateMin);
+								char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
+								strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &dateMax);
+
+								client.print("<p> Les événements de " + (String)dateTimeMin + " à " + (String)dateTimeMax + "</p></br>");
 
 								Serial.println(dateTimeMin);
 								Serial.println(dateTimeMax);
+
+								auto delta = difftime(mktime(&dateMin), mktime(&dateMax));
+								Serial.println(delta);
 
 								String allEvents = "{ \"Calendar\": [ ";
 
 								for (auto i : indArray)
 								{
 									auto value = arrayCalendarList[i];
-									request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=" + dateTimeMin + "&timeMax=" + dateTimeMax + "&access_token=" + access_token);
+									request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=" + (String)dateTimeMin + "&timeMax=" + (String)dateTimeMax + "&access_token=" + access_token);
 									if (request.httpResponseCode == 200)
 									{
 										/*
@@ -320,7 +336,7 @@ void loop()
 							}
 							client.print("<a href=\"/\"> Retour page accueil </a></br>");
 
-            // Choose de sub-calendars
+							// Choose de sub-calendars
 						}
 						else if (header.indexOf("GET /choosecalendar") >= 0)
 						{
@@ -357,17 +373,15 @@ void loop()
 
 							client.print("<a href=\"/\"> Retour page accueil </a></br>");
 
-						
-            // Disconnect the esp of box and restart
+							// Disconnect the esp of box and restart
 						}
 						else if (header.indexOf("GET /disconnect") >= 0)
 						{
 							//client.print("<p> L'ESP redemarre et va demarrer sur le portail pour se connecter de nouveau </p></br>");
 							wm.erase();
 							ESP.restart();
-						
 
-            // Index page 
+							// Index page
 						}
 						else
 						{
@@ -395,7 +409,7 @@ void loop()
 					}
 				}
 				else if (c != '\r')
-				{										// if you got anything else but a carriage return character,
+				{					  // if you got anything else but a carriage return character,
 					currentLine += c; // add it to the end of the currentLine
 				}
 			}
