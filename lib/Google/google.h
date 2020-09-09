@@ -90,6 +90,7 @@ HttpResponse httpGet(String url)
   return request;
 }
 
+
 /*
  La méthode n'est pas utilisé
  mais je la laisse pour le moment car elle est détaille le processus de d'authentification
