@@ -42,7 +42,7 @@ long unsigned startTimeExpire;
 std::map<String, String> mapSummaryColor;
 
 // Array list of calendar
-JsonArray arrayCalendarList;
+std::vector<JsonVariant> arrayCalendarList;
 
 // Vector of indices that reference CalendarList array
 std::vector<int> indArray;
@@ -121,7 +121,7 @@ void loop()
 {
 	// put your main code here, to run repeatedly:
 
-	if ( (millis() - startTimeExpire > (expire - 2000) && expire != 0) || ( expire == 0 && refresh_token != "" )) {
+	if ( (millis() - startTimeExpire > (expire - 120000) && expire != 0) || ( expire == 0 && refresh_token != "" )) {
 		Serial.println();
 		Serial.println("Refresh token");
 		url = "client_id=" + client_id +
@@ -132,9 +132,7 @@ void loop()
 		Serial.println(url);
 
 		request = httpPost("/token", url);
-
-		delay(1000);
-
+		
 		if (request.httpResponseCode != 200) {
 			for (int i = 0 ; i < EEPROM_SIZE ; i++) {
 				EEPROM.write(i, 0);
@@ -142,7 +140,7 @@ void loop()
 			EEPROM.commit();
 			ESP.restart();
 		}
-
+		
 		// Deserialize the JSON document and Test if parsing succeeds.
 		checkJsonError(deserializeJson(googleToken, request.httpResponse));
 		
@@ -179,6 +177,13 @@ void loop()
 		String currentLine = "";	   // make a String to hold incoming data from the client
 		while (client.connected())
 		{ // loop while the client's connected
+
+			// refresh events calandar
+			if (access_token != "") {
+				
+			}
+
+
 			if (client.available())
 			{							// if there's bytes to read from the client,
 				char c = client.read(); // read a byte, then
@@ -326,7 +331,20 @@ void loop()
 
 										request.httpResponseCode = -1;
 
-										arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
+										//arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
+
+										arrayCalendarList.clear();
+
+										for (JsonVariant value: jsonCalendarList["items"].as<JsonArray>()) {
+											request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
+											if (request.httpResponseCode == 200)
+											{
+												//Serial.print(value["summary"].as<String>());
+												arrayCalendarList.push_back(value);
+											}
+										}
+
+										//Serial.print(arrayCalendarList.size());
 
 										for (auto value : arrayCalendarList)
 											mapSummaryColor[value["summary"].as<String>()] = value["colorId"].as<String>();
@@ -376,12 +394,12 @@ void loop()
 									if (request.httpResponseCode == 200)
 									{
 										/*
-                  client.print("<p>");
-                  client.print(value["summary"].as<String>());
-                  client.print(" : </br>");
-                  client.print(request.httpResponse);
-                  client.print("</p>");
-                  */
+										client.print("<p>");
+										client.print(value["summary"].as<String>());
+										client.print(" : </br>");
+										client.print(request.httpResponse);
+										client.print("</p>");
+										*/
 										allEvents += request.httpResponse;
 										allEvents += ", ";
 									}
@@ -452,9 +470,26 @@ void loop()
 							client.print("<h2>Les sous comptes de Google :</h2>");
 
 							client.print("<form action=\"/result\" method=\"get\"><div>");
+							
+							//arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
+							
+							//JsonArray arrList = jsonCalendarList["items"].as<JsonArray>();
+							
+							arrayCalendarList.clear();
+
+							for (JsonVariant value: jsonCalendarList["items"].as<JsonArray>()) {
+								request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
+								if (request.httpResponseCode == 200)
+								{
+									//Serial.print(value["summary"].as<String>());
+									arrayCalendarList.push_back(value);
+								}
+							}
+
+							//Serial.print(arrayCalendarList.size());
 
 							int idName = 0;
-							arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
+							
 							for (JsonVariant value : arrayCalendarList)
 							{
 								//client.print("<p>Summary : " + value["summary"].as<String>() + ", colorId =  " + value["colorId"].as<String>() + "</p>");

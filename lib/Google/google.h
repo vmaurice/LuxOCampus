@@ -19,54 +19,73 @@ struct HttpResponse
 
 HTTPClient http;
 
+// Make a request with POST HTTP protocol
 HttpResponse httpPost(String host, String url)
 {
   HttpResponse request;
 
-  http.begin("https://oauth2.googleapis.com" + host);
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  //http.setTimeout(1000);
 
-  request.httpResponseCode = http.POST(url);
+  request.httpResponseCode = 0;
+  int n = 0;
 
-  if (request.httpResponseCode > 0)
-  {
-    request.httpResponse = http.getString(); //Get the response to the request
-    //Serial.println(request.httpResponseCode);   //Print return code
-    //Serial.println(request.httpResponse);
+  while (request.httpResponseCode <= 0 && n < 3) {
+    http.begin("https://oauth2.googleapis.com" + host);
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+    request.httpResponseCode = http.POST(url);
+
+
+    if (request.httpResponseCode < 0) {
+      Serial.print("Error on sending POST: ");
+      Serial.println(request.httpResponseCode);
+
+      delay(1000);
+    } else {
+      request.httpResponse = http.getString(); //Get the response to the request
+    }
+
+    http.end();
+
+    n++;
+
+    //Serial.println(n);
   }
-  else
-  {
-    Serial.print("Error on sending POST: ");
-    Serial.println(request.httpResponseCode);
-  }
-
-  http.end();
 
   return request;
 }
 
+// Make a request with GET HTTP protocol
 HttpResponse httpGet(String url)
 {
   HttpResponse request;
 
-  http.begin(url);
+  request.httpResponseCode = 0;
+  int n = 0;
 
-  request.httpResponseCode = http.GET();
+  while (request.httpResponseCode <= 0 && n < 3) {
 
-  if (request.httpResponseCode > 0)
-  {
-    request.httpResponse = http.getString(); //Get the response to the request
+    http.begin(url);
 
-    //Serial.println(request.httpResponseCode);   //Print return code
-    //Serial.println(request.httpResponse);
+    request.httpResponseCode = http.GET();
+
+    if (request.httpResponseCode < 0){
+      Serial.print("Error on sending GET: ");
+      Serial.println(request.httpResponseCode);
+      
+      delay(1000);
+    }
+    else {
+      request.httpResponse = http.getString(); //Get the response to the request
+    }
+
+    http.end();
+
+    n++;
   }
-  else
-  {
-    Serial.print("Error on sending POST: ");
-    Serial.println(request.httpResponseCode);
-  }
 
-  http.end();
+  //Serial.println(request.httpResponseCode);   //Print return code
+  //Serial.println(request.httpResponse);
 
   return request;
 }
