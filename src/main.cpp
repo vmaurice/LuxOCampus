@@ -10,6 +10,11 @@
 #include <ctime>
 #include "time.h"
 
+// convert time
+#include <sstream>
+#include <iomanip>
+
+
 const char *ntpServer = "0.fr.pool.ntp.org";
 //const long gmtOffset_sec = 0;
 //const int daylightOffset_sec = 0;
@@ -58,9 +63,9 @@ struct event{
   String name;
   String id;
   String color;
-  String startDate;
-  String endDate;
-  String subCalendarName;
+  struct tm startDate;
+  struct tm endDate;
+  String  subCalendarName;
 };
 
 // List events
@@ -186,8 +191,16 @@ void getEvent(WiFiClient client) {
       myEvent.name = value["summary"].as<String>();
       myEvent.id = value["id"].as<String>();
       myEvent.color = colorEvent;
-      myEvent.startDate = value["start"]["dateTime"].as<String>();
-      myEvent.endDate = value["end"]["dateTime"].as<String>();
+
+      struct tm eventTime;
+      std::istringstream iss(value["start"]["dateTime"].as<char*>());
+      iss >> std::get_time(&eventTime, "%Y-%m-%dT%H:%M:%S");
+      myEvent.startDate = eventTime;
+
+      std::istringstream iss2(value["end"]["dateTime"].as<char*>());
+      iss2 >> std::get_time(&eventTime, "%Y-%m-%dT%H:%M:%S");
+      myEvent.endDate = eventTime;
+      
       myEvent.subCalendarName = cal["summary"].as<String>();
       listEvents.push_back(myEvent);
     }
@@ -198,7 +211,48 @@ void getEvent(WiFiClient client) {
 // elapsed time for reload calendar
 unsigned long elapsedTime;
 
+std::vector<struct event> listColorCalendar;
 
+
+void colorCalendar() {
+  if (listEvents.size() == 0) {
+    Serial.print("Any color (any event)");
+  }
+  listColorCalendar.clear();
+  for (auto value: listEvents) {
+    if (!getLocalTime(&dateTime))
+    {
+      Serial.println("Failed to obtain time");
+      return;
+    }
+    if (difftime(mktime(&dateTime), mktime(&value.startDate)) > 0 && difftime(mktime(&dateTime), mktime(&value.endDate)) < 0) {
+      listColorCalendar.push_back(value);
+    }
+  }
+  if (listColorCalendar.empty()) {
+    for (auto value: listEvents) {
+      struct tm lastTime;
+      if (listColorCalendar.empty()) {
+        lastTime = value.startDate;
+        listColorCalendar.push_back(value);
+      }
+      int dif = difftime(mktime(&value.startDate), mktime(&dateTime)) - difftime(mktime(&lastTime), mktime(&dateTime));
+      if (dif == 0) {
+        listColorCalendar.clear();
+        listColorCalendar.push_back(value);
+      } else if (dif < 0) {
+        listColorCalendar.clear();
+        listColorCalendar.push_back(value);
+        lastTime = value.startDate;
+      }
+    }
+  }
+  client.println("<h3>Prochaine coleur : </h3>");
+  for (auto value: listColorCalendar) {
+    client.println("<p style='color: " + value.color + "'>" + value.name + ", color : " + value.color);
+  }
+  client.println("</br></br>");
+}
 
 void setup()
 {
@@ -492,12 +546,18 @@ void loop()
                 for (auto value: listEvents) {
                   if (subCalendarName == "" || subCalendarName != value.subCalendarName) {
                     subCalendarName = value.subCalendarName;
-                    client.print("<h2>" + subCalendarName + "</h2>");
+                    client.print("<h3>" + subCalendarName + "</h3>");
                   }
-                  client.print("<p style='color: " + value.color + "'>" + value.name + " de " + value.startDate + " à " + value.endDate + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
+                  char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
+                  strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
+                  char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
+                  strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
+                  client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
                 }
 
 								client.print("</br></br>");
+
+                colorCalendar();
 
 								client.print("<p><a href=\"/choosecalendar\">Modifier la sélection des sous calendiers du compte.</a></p>");
 							}
