@@ -58,6 +58,8 @@ std::vector<int> indArray;
 // DateTime instant
 struct tm dateTime;
 
+
+
 // the event structure
 struct event{
   String name;
@@ -68,8 +70,14 @@ struct event{
   String  subCalendarName;
 };
 
+// the sub-calendar structure
+struct subCalendar {
+  String name;
+  std::vector<struct event> listEvents;
+};
+
 // List events
-std::vector<struct event> listEvents;
+std::vector<struct subCalendar> listEvents;
 
 // Get events
 void getEvent(WiFiClient client) {
@@ -165,13 +173,18 @@ void getEvent(WiFiClient client) {
   // Deserialize the JSON document and Test if parsing succeeds.
   checkJsonError(deserializeJson(jsonCalendar, allEvents));
 
+
+
   listEvents.clear();
+
 
   JsonArray arrayCalendar = jsonCalendar["Calendar"].as<JsonArray>();
   for (JsonVariant cal : arrayCalendar)
   {
     JsonArray arr = cal["items"].as<JsonArray>();
 	  //client.print("<p>" + cal["summary"].as<String>() + " : </p>");
+    struct subCalendar subCal;
+    subCal.name = cal["summary"].as<String>();
     for (JsonVariant value : arr)
     {
       if (value.containsKey("colorId"))
@@ -187,6 +200,9 @@ void getEvent(WiFiClient client) {
         //Serial.println(colorEvent);
       }
       //client.print("<p style='color: " + colorEvent + "'>" + value["summary"].as<String>() + " de " + value["start"]["dateTime"].as<String>() + " à " + value["end"]["dateTime"].as<String>() + ", colorId =  " + colorEvent + ", id = " + value["id"].as<String>() + "</p>");
+      String subCalendarName = "";
+      
+      
       struct event myEvent;
       myEvent.name = value["summary"].as<String>();
       myEvent.id = value["id"].as<String>();
@@ -202,9 +218,13 @@ void getEvent(WiFiClient client) {
       myEvent.endDate = eventTime;
       
       myEvent.subCalendarName = cal["summary"].as<String>();
-      listEvents.push_back(myEvent);
+
+
+      //listEvents.push_back(myEvent);
+      subCal.listEvents.push_back(myEvent);
     }
     //client.print("</br>");
+    listEvents.push_back(subCal);
   }
 }
 
@@ -219,39 +239,43 @@ void colorCalendar() {
     Serial.print("Any color (any event)");
   }
   listColorCalendar.clear();
-  for (auto value: listEvents) {
-    if (!getLocalTime(&dateTime))
-    {
-      Serial.println("Failed to obtain time");
-      return;
-    }
-    if (difftime(mktime(&dateTime), mktime(&value.startDate)) > 0 && difftime(mktime(&dateTime), mktime(&value.endDate)) < 0) {
-      listColorCalendar.push_back(value);
+  for (auto subCal : listEvents) {
+    for (auto value: subCal.listEvents) {
+      if (!getLocalTime(&dateTime))
+      {
+        Serial.println("Failed to obtain time");
+        return;
+      }
+      if (difftime(mktime(&dateTime), mktime(&value.startDate)) > 0 && difftime(mktime(&dateTime), mktime(&value.endDate)) < 0) {
+        listColorCalendar.push_back(value);
+      }
     }
   }
   if (listColorCalendar.empty()) {
-    for (auto value: listEvents) {
-      struct tm lastTime;
-      if (listColorCalendar.empty()) {
-        lastTime = value.startDate;
-        listColorCalendar.push_back(value);
-      }
-      int dif = difftime(mktime(&value.startDate), mktime(&dateTime)) - difftime(mktime(&lastTime), mktime(&dateTime));
-      if (dif == 0) {
-        listColorCalendar.clear();
-        listColorCalendar.push_back(value);
-      } else if (dif < 0) {
-        listColorCalendar.clear();
-        listColorCalendar.push_back(value);
-        lastTime = value.startDate;
+    for (auto subCal : listEvents) {
+      for (auto value: subCal.listEvents) {
+        struct tm lastTime;
+        if (listColorCalendar.empty()) {
+          lastTime = value.startDate;
+          listColorCalendar.push_back(value);
+        }
+        int dif = difftime(mktime(&value.startDate), mktime(&dateTime)) - difftime(mktime(&lastTime), mktime(&dateTime));
+        if (dif == 0) {
+          listColorCalendar.clear();
+          listColorCalendar.push_back(value);
+        } else if (dif < 0) {
+          listColorCalendar.clear();
+          listColorCalendar.push_back(value);
+          lastTime = value.startDate;
+        }
       }
     }
+    client.println("<h3>Prochaine coleur : </h3>");
+    for (auto value: listColorCalendar) {
+      client.println("<p style='color: " + value.color + "'>" + value.name + ", color : " + value.color);
+    }
+    client.println("</br></br>");
   }
-  client.println("<h3>Prochaine coleur : </h3>");
-  for (auto value: listColorCalendar) {
-    client.println("<p style='color: " + value.color + "'>" + value.name + ", color : " + value.color);
-  }
-  client.println("</br></br>");
 }
 
 void setup()
@@ -543,16 +567,15 @@ void loop()
 
                 String subCalendarName = "";
 
-                for (auto value: listEvents) {
-                  if (subCalendarName == "" || subCalendarName != value.subCalendarName) {
-                    subCalendarName = value.subCalendarName;
-                    client.print("<h3>" + subCalendarName + "</h3>");
+                for (auto subCal: listEvents) {
+                  client.print("<h3>" + subCal.name + "</h3>");
+                  for (auto value: subCal.listEvents) {
+                    char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
+                    strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
+                    char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
+                    strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
+                    client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
                   }
-                  char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
-                  strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
-                  char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
-                  strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
-                  client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
                 }
 
 								client.print("</br></br>");
