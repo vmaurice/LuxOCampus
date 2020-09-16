@@ -690,6 +690,11 @@ void loop()
 						{
 							//client.print("<p> L'ESP redemarre et va demarrer sur le portail pour se connecter de nouveau </p></br>");
 							wm.erase();
+							for (int i = 0; i < EEPROM_SIZE; i++)
+							{
+								EEPROM.write(i, 0);
+							}
+							EEPROM.commit();
 							ESP.restart();
 
 							// Index page
