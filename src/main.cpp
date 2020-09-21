@@ -86,7 +86,7 @@ std::vector<struct subCalendar> listEvents;
 // Get events
 void getEvent()
 {
-
+	/*
 	if (indArray.empty())
 	{
 		if (arrayCalendarList.size() == 0)
@@ -123,6 +123,8 @@ void getEvent()
 		}
 		Serial.println("Number of sub-calendar(s) : " + (String)indArray.size());
 	}
+	*/
+
 
 	// print the events between 1 day before and 7 days after of calendar selected
 
@@ -151,6 +153,9 @@ void getEvent()
 
 	//auto delta = difftime(mktime(&dateMin), mktime(&dateMax));
 	//Serial.println(delta);
+
+	if (indArray.empty())
+		return;
 
 	String allEvents = "{ \"Calendar\": [ ";
 
@@ -237,6 +242,11 @@ unsigned long elapsedTime;
 
 std::vector<struct event> listColorCalendar;
 
+
+struct event rainbow = {"rainbow"};
+//rainbow.name = "rainbow";
+
+
 void colorCalendar()
 {
 	if (listEvents.size() == 0)
@@ -286,6 +296,11 @@ void colorCalendar()
 			}
 		}
 	}
+
+	if (listColorCalendar.empty()) 
+	{
+		listColorCalendar.push_back(rainbow);
+	}
 }
 
 void setup()
@@ -315,13 +330,16 @@ void setup()
 	//wm.setCountry("FR"); // setting wifi country seems to improve OSX soft ap connectivity, may help others as well
 
 	// set configrportal timeout
-	wm.setConfigPortalTimeout(300);
+	wm.setConfigPortalTimeout(900);
+
 
 	if (!wm.autoConnect(ssid))
 	{
 		delay(1000);
-		wm.startConfigPortal(ssid);
+		Serial.println("Failed to connect");
+        ESP.restart();
 	}
+
 
 	//if you get here you have connected to the WiFi
 	Serial.println("connected...yeey :)");
@@ -565,12 +583,20 @@ void loop()
 								if (header.indexOf("GET /result?") >= 0)
 								{
 									indArray.clear();
-									for (int i = 0; i < arrayCalendarList.size(); i++)
+									if (header.indexOf("demo=on") > 0) 
 									{
-										if (header.indexOf((String)i + "=on") > 0)
+										//Serial.println(">>>> find demo");
+										listEvents.clear();
+									}
+									else 
+									{
+										for (int i = 0; i < arrayCalendarList.size(); i++)
 										{
-											//client.print(arrayCalendarList[i]["summary"].as<String>() + "</br>");
-											indArray.push_back(i);
+											if (header.indexOf((String)i + "=on") > 0)
+											{
+												//client.print(arrayCalendarList[i]["summary"].as<String>() + "</br>");
+												indArray.push_back(i);
+											}
 										}
 									}
 								}
@@ -586,20 +612,28 @@ void loop()
 
 								client.print("<h2>Les sous-calendriers : </h2>");
 
-								String subCalendarName = "";
-
-								for (auto subCal : listEvents)
+								if (listEvents.empty()) 
 								{
-									client.print("<h3>" + subCal.name + "</h3>");
-									for (auto value : subCal.listEvents)
+									client.print("<p><a href=\"/choosecalendar\">Aucun sous-calendrier sélectionné, cliquez ici pour les sélectionner.</a></p>");
+								}
+								else 
+								{
+									String subCalendarName = "";
+
+									for (auto subCal : listEvents)
 									{
-										char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
-										strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
-										char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
-										strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
-										client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
+										client.print("<h3>" + subCal.name + "</h3>");
+										for (auto value : subCal.listEvents)
+										{
+											char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
+											strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
+											char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
+											strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
+											client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
+										}
 									}
 								}
+
 
 								client.print("</br>");
 
@@ -608,7 +642,10 @@ void loop()
 								client.println("<h2>Prochain événement(s) affiché sur le calendrier : </h2>");
 								for (auto value : listColorCalendar)
 								{
-									client.println("<p style='color: " + value.color + "'>" + value.name + ", color : " + value.color);
+									if (value.name == "rainbow")
+										client.println("<p>Mode démo : " + value.name + "</p>");
+									else
+										client.println("<p style='color: " + value.color + "'>" + value.name + ", color : " + value.color + "</p>");
 								}
 
 								client.print("</br></br>");
@@ -646,6 +683,12 @@ void loop()
 							client.print("<p>Les sous-calendriers :</p>");
 
 							client.print("<form action=\"/result\" method=\"get\"><div>");
+
+							// mode démo
+
+							client.print("<input type=\"checkbox\" name=\"demo\">");
+							client.print("<label for=\"demo\">  Mode démo (n'accepte pas les autres calendriers)</label></br></br>");
+								
 
 							//arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
 
