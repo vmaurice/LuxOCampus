@@ -23,6 +23,21 @@ const char *tz_info = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // https:/
 #include "google.h"
 #include "fileJson.h"
 
+
+// Led
+#include <FastLED.h>
+
+#define DATA_PIN 	23
+#define CLOCK_PIN 	18
+#define NUM_LEDS    13
+#define BRIGHTNESS  64
+#define LED_TYPE    SK9822
+#define COLOR_ORDER BGR
+
+CRGB leds[NUM_LEDS];
+
+long unsigned ledElepsed;
+
 // EEPROM
 #include <EEPROM.h>
 #define EEPROM_SIZE 256
@@ -83,6 +98,10 @@ struct subCalendar
 // List events
 std::vector<struct subCalendar> listEvents;
 
+// Define MaxDayInMonth
+const int maxDayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+
 // Get events
 void getEvent()
 {
@@ -140,6 +159,27 @@ void getEvent()
 	dateMin.tm_mday -= 1;
 	dateMax.tm_mday += 7;
 
+	if (dateMin.tm_mday > maxDayInMonth[dateMin.tm_mon]) {
+		if (dateMin.tm_mon == 1) {
+			dateMin.tm_mday = 31;
+			dateMin.tm_mon = 12;
+			dateMin.tm_year -= 1;
+		} else {
+			dateMin.tm_mon -= 1;
+			dateMin.tm_mday = maxDayInMonth[dateMin.tm_mon];
+		}
+	}
+
+	if (dateMax.tm_mday > maxDayInMonth[dateMax.tm_mon]) {
+		dateMax.tm_mday = 1;
+		if (dateMax.tm_mon == 12) {
+			dateMax.tm_mon = 1;
+			dateMax.tm_year += 1;
+		}	
+		else
+			dateMax.tm_mon += 1;
+	}
+
 	// Convert struct tm to String
 	strftime(dateTimeChar, sizeof dateTimeChar, "%FT%TZ", &dateTime);
 	strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &dateMin);
@@ -163,13 +203,19 @@ void getEvent()
 	{
 		auto value = arrayCalendarList[i];
 		request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=" + (String)dateTimeMin + "&timeMax=" + (String)dateTimeMax + "&access_token=" + access_token);
+		//Serial.println("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=" + (String)dateTimeMin + "&timeMax=" + (String)dateTimeMax + "&access_token=" + access_token);
 		if (request.httpResponseCode == 200)
 		{
 			allEvents += request.httpResponse;
 			allEvents += ", ";
 		}
-		else
+		else 
+		{
 			Serial.println("Error events with : " + value["summary"].as<String>());
+			Serial.print(request.httpResponseCode);
+			Serial.print(" : ");
+			Serial.println(request.httpResponse);
+		}
 	}
 
 	allEvents = allEvents.substring(0, allEvents.length() - 2);
@@ -372,12 +418,47 @@ void setup()
 		Serial.println(refresh_token);
 	}
 
+	FastLED.addLeds<LED_TYPE, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, NUM_LEDS);
+  	FastLED.setBrightness(  BRIGHTNESS );
+
 	startTimeExpire = millis();
+	ledElepsed = millis();
 }
+
+String colorInst = "";
 
 void loop()
 {
 	// put your main code here, to run repeatedly:
+
+	if (millis() - ledElepsed > 1000) {
+		if (!listColorCalendar.empty()) {
+			//Serial.println(listColorCalendar[0].name);
+			if (listColorCalendar[0].name == "rainbow") 
+			{
+				for (int i = 0; i<NUM_LEDS; i++)
+					leds[i] = 0x000000;
+			}
+			else 
+			{
+				colorInst = listColorCalendar[0].color;
+				//Serial.println(colorInst);
+				colorInst = "0x" + colorInst.substring(1,colorInst.length());
+				//Serial.println(colorInst);
+				unsigned int colorValue;
+				std::stringstream sstream;
+				sstream << std::hex << colorInst.c_str();
+				sstream >> colorValue;
+				//Serial.println(colorValue);
+				for (int i = 0; i<NUM_LEDS; i++)
+					leds[i] = colorValue;
+			}
+			FastLED.show();
+		}
+		ledElepsed = millis();
+	}
+	
+
 
 	if ((millis() - startTimeExpire > (expire - 120000) && expire != 0) || (expire == 0 && refresh_token != ""))
 	{
@@ -437,9 +518,10 @@ void loop()
 
 	client = server.available(); // listen for incoming clients
 
-	if (millis() - elapsedTime > 10 * 60 * 1000 && access_token != "")
+	if (millis() - elapsedTime > 1 * 60 * 1000 && access_token != "")
 	{
 		getEvent();
+		colorCalendar();
 		elapsedTime = millis();
 	}
 
