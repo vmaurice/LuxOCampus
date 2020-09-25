@@ -14,6 +14,8 @@
 #include <sstream>
 #include <iomanip>
 
+#define TIME_REFRESH 30 * 1000
+
 const char *ntpServer = "0.fr.pool.ntp.org";
 //const long gmtOffset_sec = 0;
 //const int daylightOffset_sec = 0;
@@ -295,57 +297,166 @@ struct event rainbow = {"rainbow"};
 
 void colorCalendar()
 {
+	listColorCalendar.clear();
 	if (listEvents.size() == 0)
 	{
-		Serial.print("Any color (any event)");
+		//Serial.println("Any color (mode démo)");
 	}
-	listColorCalendar.clear();
-	for (auto subCal : listEvents)
-	{
-		for (auto value : subCal.listEvents)
-		{
-			if (difftime(mktime(&dateTime), mktime(&value.startDate)) > 0 && difftime(mktime(&dateTime), mktime(&value.endDate)) < 0)
-			{
-				listColorCalendar.push_back(value);
-			}
-		}
-	}
-	if (listColorCalendar.empty())
+	else 
 	{
 		for (auto subCal : listEvents)
 		{
 			for (auto value : subCal.listEvents)
 			{
-				if (difftime(mktime(&dateTime), mktime(&value.endDate)) <= 0) {
-					struct tm lastTime;
-					if (listColorCalendar.empty())
-					{
-						lastTime = value.startDate;
-						listColorCalendar.push_back(value);
-					}
-					else 
-					{
-						int dif = difftime(mktime(&value.startDate), mktime(&dateTime)) - difftime(mktime(&lastTime), mktime(&dateTime));
-						if (dif == 0)
+				if (difftime(mktime(&dateTime), mktime(&value.startDate)) > 0 && difftime(mktime(&dateTime), mktime(&value.endDate)) < 0)
+				{
+					listColorCalendar.push_back(value);
+				}
+			}
+		}
+		if (listColorCalendar.empty())
+		{
+			for (auto subCal : listEvents)
+			{
+				for (auto value : subCal.listEvents)
+				{
+					if (difftime(mktime(&dateTime), mktime(&value.endDate)) <= 0) {
+						struct tm lastTime;
+						if (listColorCalendar.empty())
 						{
-							listColorCalendar.clear();
+							lastTime = value.startDate;
 							listColorCalendar.push_back(value);
 						}
-						else if (dif < 0)
+						else 
 						{
-							listColorCalendar.clear();
-							listColorCalendar.push_back(value);
-							lastTime = value.startDate;
+							int dif = difftime(mktime(&value.startDate), mktime(&dateTime)) - difftime(mktime(&lastTime), mktime(&dateTime));
+							if (dif == 0)
+							{
+								listColorCalendar.clear();
+								listColorCalendar.push_back(value);
+							}
+							else if (dif < 0)
+							{
+								listColorCalendar.clear();
+								listColorCalendar.push_back(value);
+								lastTime = value.startDate;
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-
 	if (listColorCalendar.empty()) 
 	{
 		listColorCalendar.push_back(rainbow);
+	}
+}
+
+
+CRGB wheel(int WheelPos, int dim)
+{
+  CRGB color;
+  if (85 > WheelPos)
+  {
+   color.r=0;
+   color.g=WheelPos * 3/dim;
+   color.b=(255 - WheelPos * 3)/dim;;
+  } 
+  else if (170 > WheelPos)
+  {
+   color.r=WheelPos * 3/dim;
+   color.g=(255 - WheelPos * 3)/dim;
+   color.b=0;
+  }
+  else
+  {
+   color.r=(255 - WheelPos * 3)/dim;
+   color.g=0;
+   color.b=WheelPos * 3/dim;
+  }
+  return color;
+}
+
+
+
+void rainbowCycle(int wait, int cycles, int dim)
+{
+  //Serial.println("Let's make a rainbow.");
+  //loop several times with same configurations and same delay
+  for(int cycle=0; cycle < cycles; cycle++)
+  {
+    byte dir=random(0,2);
+    int k=255;
+
+    //loop through all colors in the wheel
+    for (int j=0; j < 256; j++,k--)
+    {
+      
+      if(k<0)
+      {
+        k=255;
+      }
+      
+      //Set RGB color of each LED
+      for(int i=0; i<NUM_LEDS; i++)
+      {
+        CRGB ledColor = wheel(((i * 256 / NUM_LEDS) + (dir==0?j:k)) % 256,dim);        
+        leds[i]=ledColor;
+      }
+
+      FastLED.show();
+      FastLED.delay(wait);
+    }
+  }
+}
+
+
+
+// thread for led
+TaskHandle_t taskLed;
+String colorInst = "";
+
+void ledThread(void * pvParameters) {
+	for (;;)
+	{
+		//Serial.print("ledThread() running on core ");
+		//Serial.println(xPortGetCoreID());
+		if (!listColorCalendar.empty() && listColorCalendar[0].name != "rainbow") 
+		{
+			for (auto value: listColorCalendar) {
+				//Serial.println(value.name);
+				colorInst = value.color;
+				//Serial.println(colorInst);
+				colorInst = "0x" + colorInst.substring(1,colorInst.length());
+				//Serial.println(colorInst);
+				unsigned int colorValue;
+				std::stringstream sstream;
+				sstream << std::hex << colorInst.c_str();
+				sstream >> colorValue;
+				//Serial.println(colorValue);
+				for (int i = 0; i<NUM_LEDS; i++)
+					leds[i] = colorValue;
+				FastLED.show();
+				delay(100);
+			}
+		} 
+		else
+		{
+			
+			randomSeed(millis());
+
+			int wait=random(10,30);
+			int dim=random(4,6);
+			int max_cycles=8;
+			int cycles=random(1,max_cycles+1);
+
+			rainbowCycle(wait, cycles, dim);
+			
+			//fill_rainbow( leds, NUM_LEDS, 0, 1);
+			//FastLED.show();
+		}
+		yield();
 	}
 }
 
@@ -422,41 +533,25 @@ void setup()
   	FastLED.setBrightness(  BRIGHTNESS );
 
 	startTimeExpire = millis();
-	ledElepsed = millis();
-}
+	
+	
+	xTaskCreatePinnedToCore(
+      ledThread, /* Function to implement the task */
+      "Task1", /* Name of the task */
+      10000,  /* Stack size in words */
+      NULL,  /* Task input parameter */
+      1,  /* Priority of the task */
+      &taskLed,  /* Task handle. */
+      0); /* Core where the task should run */
 
-String colorInst = "";
+
+	//Serial.print("setup() running on core ");
+  	//Serial.println(xPortGetCoreID());
+}
 
 void loop()
 {
-	// put your main code here, to run repeatedly:
-
-	if (millis() - ledElepsed > 1000) {
-		if (!listColorCalendar.empty()) {
-			//Serial.println(listColorCalendar[0].name);
-			if (listColorCalendar[0].name == "rainbow") 
-			{
-				for (int i = 0; i<NUM_LEDS; i++)
-					leds[i] = 0x000000;
-			}
-			else 
-			{
-				colorInst = listColorCalendar[0].color;
-				//Serial.println(colorInst);
-				colorInst = "0x" + colorInst.substring(1,colorInst.length());
-				//Serial.println(colorInst);
-				unsigned int colorValue;
-				std::stringstream sstream;
-				sstream << std::hex << colorInst.c_str();
-				sstream >> colorValue;
-				//Serial.println(colorValue);
-				for (int i = 0; i<NUM_LEDS; i++)
-					leds[i] = colorValue;
-			}
-			FastLED.show();
-		}
-		ledElepsed = millis();
-	}
+	// put your main code here, to run repeatedly: 
 	
 
 
@@ -518,8 +613,10 @@ void loop()
 
 	client = server.available(); // listen for incoming clients
 
-	if (millis() - elapsedTime > 1 * 60 * 1000 && access_token != "")
+	if (millis() - elapsedTime > TIME_REFRESH && access_token != "")
 	{
+		//Serial.print("loop() running on core ");
+  		//Serial.println(xPortGetCoreID());
 		getEvent();
 		colorCalendar();
 		elapsedTime = millis();
@@ -531,11 +628,6 @@ void loop()
 		String currentLine = "";	   // make a String to hold incoming data from the client
 		while (client.connected())
 		{ // loop while the client's connected
-
-			// refresh events calandar
-			if (access_token != "")
-			{
-			}
 
 			if (client.available())
 			{							// if there's bytes to read from the client,
