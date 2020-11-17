@@ -1,63 +1,11 @@
-#include <Arduino.h>
+#include "main.h"
 
-#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
-#include <ESPmDNS.h>
 
-#include <SPIFFS.h>
 
-#define DATA_JSON "/data.json"
 
-#include <map>
-#include <vector>
 
-// Define time
-#include <ctime>
-#include "time.h"
-
-// convert time
-#include <sstream>
-#include <iomanip>
 
 #define TIME_REFRESH 10 * 1000
-
-const char *ntpServer = "0.fr.pool.ntp.org";
-//const long gmtOffset_sec = 0;
-//const int daylightOffset_sec = 0;
-const char *tz_info = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // https://remotemonitoringsystems.ca/time-zone-abbreviations.php
-
-// my include file
-#include "google.h"
-#include "fileJson.h"
-
-
-// Led
-#include <FastLED.h>
-
-#define DATA_PIN 	23
-#define CLOCK_PIN 	18
-#define NUM_LEDS    13
-#define BRIGHTNESS  64
-#define LED_TYPE    SK9822
-#define COLOR_ORDER BGR
-
-CRGB leds[NUM_LEDS];
-
-long unsigned ledElepsed;
-
-WiFiManager wm; // global wm instance
-const char *ssid = "ESP32";
-
-WiFiServer server(80);
-String header;
-
-WiFiClient client;
-
-HttpResponse request;
-
-String url;
-String access_token = "";
-String refresh_token = "";
-int expire = 0;
 
 long unsigned startTimeExpire;
 
@@ -67,86 +15,14 @@ std::map<String, String> mapSummaryColor;
 // Array list of calendar
 std::vector<JsonVariant> arrayCalendarList;
 
-// Vector of indices that reference CalendarList array
-std::vector<int> indArray;
+String googleColor;
 
-// DateTime instant
-struct tm dateTime;
-struct tm dateMin;
-struct tm dateMax;
-char dateTimeChar[sizeof "2011-10-08T07:07:09Z"];
-char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
-char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
 
-// the event structure
-struct event
-{
-	String name;
-	String id;
-	String color;
-	struct tm startDate;
-	struct tm endDate;
-	String subCalendarName;
-};
-
-// the sub-calendar structure
-struct subCalendar
-{
-	String name;
-	String id;
-	std::vector<struct event> listEvents;
-};
-
-// List events
-std::vector<struct subCalendar> listEvents;
-
-// Define MaxDayInMonth
-const int maxDayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 
 // Get events
 void getEvent()
 {
-	/*
-	if (indArray.empty())
-	{
-		if (arrayCalendarList.size() == 0)
-		{
-			request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
-
-			// Deserialize the JSON document and Test if parsing succeeds.
-			checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
-
-			request.httpResponseCode = -1;
-
-			//arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
-
-			arrayCalendarList.clear();
-
-			for (JsonVariant value : jsonCalendarList["items"].as<JsonArray>())
-			{
-				request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
-				if (request.httpResponseCode == 200)
-				{
-					//Serial.print(value["summary"].as<String>());
-					arrayCalendarList.push_back(value);
-				}
-			}
-
-			//Serial.print(arrayCalendarList.size());
-
-			for (auto value : arrayCalendarList)
-				mapSummaryColor[value["summary"].as<String>()] = value["colorId"].as<String>();
-		}
-		for (int i = 0; i < arrayCalendarList.size(); i++)
-		{
-			indArray.push_back(i);
-		}
-		Serial.println("Number of sub-calendar(s) : " + (String)indArray.size());
-	}
-	*/
-
-
 	// print the events between 1 day before and 7 days after of calendar selected
 
 	if (!getLocalTime(&dateTime))
@@ -196,21 +72,32 @@ void getEvent()
 	//auto delta = difftime(mktime(&dateMin), mktime(&dateMax));
 	//Serial.println(delta);
 
-	if (indArray.empty())
+
+
+	if (selectCalendars.isEmpty())
 		return;
+
+
+	// The list of sub-calendars 
+	DynamicJsonDocument jsonCalendarList(8192);
+
+	checkJsonError(deserializeJson(jsonCalendarList, selectCalendars));
+
+	//Serial.println(jsonCalendarList.as<String>());
 
 	String allEvents = "{ \"Calendar\": [ ";
 
-	for (auto i : indArray)
+	for (JsonVariant value : jsonCalendarList["Calendar"].as<JsonArray>())
 	{
-		auto value = arrayCalendarList[i];
+		//Serial.println(value.as<String>());
 		request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=" + (String)dateTimeMin + "&timeMax=" + (String)dateTimeMax + "&access_token=" + access_token);
-		//Serial.println("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=" + (String)dateTimeMin + "&timeMax=" + (String)dateTimeMax + "&access_token=" + access_token);
+		
 		if (request.httpResponseCode == 200)
 		{
 			allEvents += request.httpResponse;
 			allEvents += ", ";
 		}
+		
 		else 
 		{
 			Serial.println("Error events with : " + value["summary"].as<String>());
@@ -227,19 +114,26 @@ void getEvent()
 
 	String colorEvent;
 
+	DynamicJsonDocument jsonCalendar(jsonCapacityCalendar);
+
 	// Deserialize the JSON document and Test if parsing succeeds.
 	checkJsonError(deserializeJson(jsonCalendar, allEvents));
 
-	listEvents.clear();
+	listSubCalendar.clear();
+
+	//Serial.println(jsonCalendar.as<String>());
+
+	DynamicJsonDocument jsonColor(jsonCapacityJsonColor);
+
+	checkJsonError(deserializeJson(jsonColor, googleColor));
 
 	JsonArray arrayCalendar = jsonCalendar["Calendar"].as<JsonArray>();
 	for (JsonVariant cal : arrayCalendar)
 	{
 		JsonArray arr = cal["items"].as<JsonArray>();
-		//client.print("<p>" + cal["summary"].as<String>() + " : </p>");
 		struct subCalendar subCal;
 		subCal.name = cal["summary"].as<String>();
-		subCal.id = cal["id"].as<String>();
+		subCal.etag = cal["etag"].as<String>();
 		for (JsonVariant value : arr)
 		{
 			if (value.containsKey("colorId"))
@@ -277,8 +171,10 @@ void getEvent()
 			subCal.listEvents.push_back(myEvent);
 		}
 		//client.print("</br>");
-		listEvents.push_back(subCal);
+		listSubCalendar.push_back(subCal);
 	}
+
+	
 }
 
 
@@ -298,13 +194,13 @@ struct event rainbow = {"rainbow"};
 void colorCalendar()
 {
 	listColorCalendar.clear();
-	if (listEvents.size() == 0)
+	if (listSubCalendar.size() == 0)
 	{
 		//Serial.println("Any color (mode démo)");
 	}
 	else 
 	{
-		for (auto subCal : listEvents)
+		for (auto subCal : listSubCalendar)
 		{
 			for (auto value : subCal.listEvents)
 			{
@@ -316,7 +212,7 @@ void colorCalendar()
 		}
 		if (listColorCalendar.empty())
 		{
-			for (auto subCal : listEvents)
+			for (auto subCal : listSubCalendar)
 			{
 				for (auto value : subCal.listEvents)
 				{
@@ -529,24 +425,32 @@ void setup()
 			} else {
 				char buf[size];
 				file.readBytes(buf, size);
+
+				StaticJsonDocument<512> jsonDataSave;
+
 				// Deserialize the JSON document and Test if parsing succeeds.
-				checkJsonError(deserializeJson(jsonData, buf));
-				refresh_token = jsonData["token"].as<String>();
+				checkJsonError(deserializeJson(jsonDataSave, buf));
+
+				refresh_token = jsonDataSave["token"].as<String>();
 				Serial.print("refresh token in SPIFFS : ");
 				Serial.println(refresh_token);
+
+				if (!jsonDataSave["calendars"].isNull())
+					saveCalendars = jsonDataSave["calendars"].as<String>();
+
 			}
 		} else {
 			Serial.print("Can not open");
 			Serial.println(DATA_JSON);
 			SPIFFS.remove(DATA_JSON);
 		}
+
 		file.close();
 	
 	} else {
 		Serial.print("Any");
 		Serial.println(DATA_JSON);
 	}
-
 	
 
 	FastLED.addLeds<LED_TYPE, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, NUM_LEDS);
@@ -577,6 +481,14 @@ void loop()
 
 	if ((millis() - startTimeExpire > (expire - 120000) && expire != 0) || (expire == 0 && refresh_token != ""))
 	{
+		bool calSPIFFS= false;
+
+
+		if (expire == 0 and !saveCalendars.isEmpty())
+			calSPIFFS = true;
+			
+		
+
 		Serial.println();
 		Serial.println("Refresh token");
 		url = "client_id=" + client_id +
@@ -595,6 +507,8 @@ void loop()
 			ESP.restart();
 		}
 
+		DynamicJsonDocument googleToken(jsonCapacitygoogleConnect);
+
 		// Deserialize the JSON document and Test if parsing succeeds.
 		checkJsonError(deserializeJson(googleToken, request.httpResponse));
 
@@ -608,20 +522,73 @@ void loop()
 		Serial.print("New token in ");
 		Serial.println(expire);
 
-		if (jsonColor.isNull())
+		
+
+		if (googleColor.isEmpty())
 		{
 			// get the color
 
+			//DynamicJsonDocument jsonColor(jsonCapacityJsonColor);
+
 			request = httpGet("https://www.googleapis.com/calendar/v3/colors?access_token=" + access_token);
 
+			
 			// Deserialize the JSON document and Test if parsing succeeds.
-			checkJsonError(deserializeJson(jsonColor, request.httpResponse));
+			//checkJsonError(deserializeJson(jsonColor, request.httpResponse));
 
 			if (request.httpResponseCode != 200)
 			{
 				Serial.println("Error request colors");
 				return;
 			}
+			
+			googleColor = request.httpResponse;
+		}
+
+		// associate with calendars data in DATA_JSON
+		if (calSPIFFS) {
+
+			Serial.println(">>>>> calendar SPIFFS");
+
+			// list all calendars and check if permission for each calendar
+
+			request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
+
+			DynamicJsonDocument jsonCalendarList(jsonCapacityCalendarList);
+
+			// Deserialize the JSON document and Test if parsing succeeds.
+			checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
+
+			arrayCalendarList.clear();
+
+			Serial.println(saveCalendars);
+
+			DynamicJsonDocument jsonDataSave(jsonCapacityDataSave);
+
+			checkJsonError(deserializeJson(jsonDataSave, saveCalendars));
+
+			
+			selectCalendars = "{ \"Calendar\": [ ";
+
+
+			for (JsonVariant value : jsonCalendarList["items"].as<JsonArray>())
+			{
+				request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
+				if (request.httpResponseCode == 200)
+				{
+					//Serial.print(value["summary"].as<String>());
+					arrayCalendarList.push_back(value);
+					if (jsonDataSave.containsKey(value["summary"].as<String>())) {
+						selectCalendars += value.as<String>() + ",";
+						mapSummaryColor[value["summary"].as<String>()] = value["colorId"].as<String>();
+					}
+						
+				}
+			}
+
+			selectCalendars = selectCalendars.substring(0, selectCalendars.length()-1);
+			selectCalendars += " ] }";
+			//Serial.println(selectCalendars);
 		}
 
 		getEvent();
@@ -686,6 +653,8 @@ void loop()
 
 								request.httpResponseCode = -1;
 
+								DynamicJsonDocument googleConnect(jsonCapacitygoogleConnect);
+
 								// Deserialize the JSON document and Test if parsing succeeds.
 								checkJsonError(deserializeJson(googleConnect, request.httpResponse));
 
@@ -718,6 +687,8 @@ void loop()
 									delay(3000);
 								}
 
+								DynamicJsonDocument googleToken(jsonCapacityGoogleToken);
+
 								// Deserialize the JSON document and Test if parsing succeeds.
 								checkJsonError(deserializeJson(googleToken, request.httpResponse));
 
@@ -741,11 +712,13 @@ void loop()
 
 								String txt = "{ \"token\": \"" + refresh_token + "\"}";
 
-								checkJsonError(deserializeJson(jsonData, txt));
+								DynamicJsonDocument jsonDataSave(jsonCapacityDataSave);
 
-								Serial.println(">>>> token : %s" + jsonData["token"].as<String>());
+								checkJsonError(deserializeJson(jsonDataSave, txt));
 
-								if (serializeJson(jsonData, file) == 0) {
+								Serial.println(">>>> token : %s" + jsonDataSave["token"].as<String>());
+
+								if (serializeJson(jsonDataSave, file) == 0) {
 									Serial.println(F("Failed to write to file"));
 								}
 
@@ -759,14 +732,18 @@ void loop()
 
 								request = httpGet("https://www.googleapis.com/calendar/v3/colors?access_token=" + access_token);
 
+								//DynamicJsonDocument jsonColor(jsonCapacityJsonColor);
+
 								// Deserialize the JSON document and Test if parsing succeeds.
-								checkJsonError(deserializeJson(jsonColor, request.httpResponse));
+								//checkJsonError(deserializeJson(jsonColor, request.httpResponse));
 
 								if (request.httpResponseCode != 200)
 								{
 									Serial.println("Error request colors");
 									return;
 								}
+
+								googleColor = request.httpResponse;
 
 								client.print("<a href=\"/result\"> Clique ici pour voir les événements </a></br>");
 							}
@@ -776,7 +753,7 @@ void loop()
 							}
 							client.print("<a href=\"/\"> Retour page accueil </a></br>");
 
-							// Print the events between 24h before and after of sub-calendars selected. If indArray is empty, all sub-calendars selected.
+							// Print the events between 24h before and after of sub-calendars selected. If selectCalendar is empty, all sub-calendars selected.
 						}
 						else if (header.indexOf("GET /result") >= 0)
 						{
@@ -789,22 +766,49 @@ void loop()
 
 								if (header.indexOf("GET /result?") >= 0)
 								{
-									indArray.clear();
 									if (header.indexOf("demo=on") > 0) 
 									{
 										//Serial.println(">>>> find demo");
-										listEvents.clear();
+										listSubCalendar.clear();
 									}
 									else 
 									{
+										String txtJsonData = "{ \"token\": \"" + refresh_token + "\", \"calendars\" : {";
+
+										selectCalendars = "{ \"Calendar\": [ ";
 										for (int i = 0; i < arrayCalendarList.size(); i++)
 										{
 											if (header.indexOf((String)i + "=on") > 0)
 											{
 												//client.print(arrayCalendarList[i]["summary"].as<String>() + "</br>");
-												indArray.push_back(i);
+												selectCalendars += arrayCalendarList[i].as<String>() + ",";
+												txtJsonData += "\"" + arrayCalendarList[i]["summary"].as<String>() + "\" : " + arrayCalendarList[i]["etag"].as<String>() + ",";
 											}
 										}
+										selectCalendars = selectCalendars.substring(0, selectCalendars.length()-1);
+										selectCalendars += " ] }";
+										//Serial.println(selectCalendars);
+										
+										txtJsonData = txtJsonData.substring(0, txtJsonData.length() - 1);
+										txtJsonData += "} }";
+
+										Serial.println(txtJsonData);
+										//Serial.println(txtJsonData.length());
+
+										StaticJsonDocument<512> jsonDataSave;
+
+										checkJsonError(deserializeJson(jsonDataSave, txtJsonData));
+
+										if (SPIFFS.exists(DATA_JSON))
+											SPIFFS.remove(DATA_JSON);
+
+										File file = SPIFFS.open(DATA_JSON, "w+");
+
+										if (serializeJson(jsonDataSave, file) == 0) {
+											Serial.println(F("Failed to write to file"));
+										}
+
+										file.close();
 									}
 								}
 
@@ -819,7 +823,7 @@ void loop()
 
 								client.print("<h2>Les sous-calendriers : </h2>");
 
-								if (listEvents.empty()) 
+								if (listSubCalendar.empty()) 
 								{
 									client.print("<p><a href=\"/choosecalendar\">Aucun sous-calendrier sélectionné, cliquez ici pour les sélectionner.</a></p>");
 								}
@@ -827,7 +831,7 @@ void loop()
 								{
 									String subCalendarName = "";
 
-									for (auto subCal : listEvents)
+									for (auto subCal : listSubCalendar)
 									{
 										client.print("<h3>" + subCal.name + "</h3>");
 										for (auto value : subCal.listEvents)
@@ -861,8 +865,10 @@ void loop()
 							}
 							client.print("<a href=\"/\"> Retour page accueil </a></br>");
 
-							// Choose de sub-calendars
 						}
+						
+						
+						// Choose sub calendars
 						else if (header.indexOf("GET /choosecalendar") >= 0)
 						{
 							// On choisit les sous calendriers google
@@ -872,16 +878,12 @@ void loop()
 								delay(1000);
 								return;
 							}
-							request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
-
-							// Deserialize the JSON document and Test if parsing succeeds.
-							checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
 
 							client.print("<h2>Les sous-comptes de Google :</h2>");
 
 							client.print("<p>Les calendriers sélectionnés précédemment : ");
 
-							for (auto cal: listEvents) {
+							for (auto cal: listSubCalendar) {
 								client.print(cal.name + ", ");
 							}
 
@@ -895,11 +897,17 @@ void loop()
 
 							client.print("<input type=\"checkbox\" name=\"demo\">");
 							client.print("<label for=\"demo\">  Mode démo (n'accepte pas les autres calendriers)</label></br></br>");
-								
+							
 
-							//arrayCalendarList = jsonCalendarList["items"].as<JsonArray>();
 
-							//JsonArray arrList = jsonCalendarList["items"].as<JsonArray>();
+							// list all calendars and check if permission for each calendar
+
+							request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
+
+							DynamicJsonDocument jsonCalendarList(jsonCapacityCalendarList);
+
+							// Deserialize the JSON document and Test if parsing succeeds.
+							checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
 
 							arrayCalendarList.clear();
 
@@ -934,7 +942,9 @@ void loop()
 
 							client.print("<a href=\"/\"> Retour page accueil </a></br>");
 
-							// Disconnect the esp of box and restart
+						
+						
+						// Disconnect the esp of box and restart
 						}
 						else if (header.indexOf("GET /disconnect") >= 0)
 						{

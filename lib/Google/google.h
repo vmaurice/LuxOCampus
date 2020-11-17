@@ -4,12 +4,16 @@
 #include <WebServer.h>
 
 #include <ArduinoJson.h>
-
 #include <google_credentials.h>
 
+// Init
+String url;
 String url_google;
 String user_code;
 String device_code;
+String access_token;
+String refresh_token;
+int expire = 0;
 
 struct HttpResponse
 {
