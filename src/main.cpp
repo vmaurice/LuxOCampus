@@ -3,6 +3,10 @@
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 #include <ESPmDNS.h>
 
+#include <SPIFFS.h>
+
+#define DATA_JSON "/data.json"
+
 #include <map>
 #include <vector>
 
@@ -14,7 +18,7 @@
 #include <sstream>
 #include <iomanip>
 
-#define TIME_REFRESH 30 * 1000
+#define TIME_REFRESH 10 * 1000
 
 const char *ntpServer = "0.fr.pool.ntp.org";
 //const long gmtOffset_sec = 0;
@@ -39,10 +43,6 @@ const char *tz_info = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // https:/
 CRGB leds[NUM_LEDS];
 
 long unsigned ledElepsed;
-
-// EEPROM
-#include <EEPROM.h>
-#define EEPROM_SIZE 256
 
 WiFiManager wm; // global wm instance
 const char *ssid = "ESP32";
@@ -515,19 +515,39 @@ void setup()
 	server.begin();
 	Serial.println("Server started");
 
-	if (!EEPROM.begin(EEPROM_SIZE))
-	{
-		Serial.println("failed to initialise EEPROM");
-		delay(100000);
+	if(!SPIFFS.begin(true)){
+		Serial.println("An Error has occurred while mounting SPIFFS");
+		return;
 	}
 
-	refresh_token = EEPROM.readString(0);
-	if (refresh_token != "")
-	{
-		Serial.println();
-		Serial.print("refresh token in EEPROM : ");
-		Serial.println(refresh_token);
+	if (SPIFFS.exists(DATA_JSON)) {
+		File file = SPIFFS.open(DATA_JSON);
+		if(file){
+			size_t size = file.size();
+			if ( size == 0 ) {
+				Serial.println("data file empty");
+			} else {
+				char buf[size];
+				file.readBytes(buf, size);
+				// Deserialize the JSON document and Test if parsing succeeds.
+				checkJsonError(deserializeJson(jsonData, buf));
+				refresh_token = jsonData["token"].as<String>();
+				Serial.print("refresh token in SPIFFS : ");
+				Serial.println(refresh_token);
+			}
+		} else {
+			Serial.print("Can not open");
+			Serial.println(DATA_JSON);
+			SPIFFS.remove(DATA_JSON);
+		}
+		file.close();
+	
+	} else {
+		Serial.print("Any");
+		Serial.println(DATA_JSON);
 	}
+
+	
 
 	FastLED.addLeds<LED_TYPE, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, NUM_LEDS);
   	FastLED.setBrightness(  BRIGHTNESS );
@@ -570,11 +590,8 @@ void loop()
 
 		if (request.httpResponseCode != 200)
 		{
-			for (int i = 0; i < EEPROM_SIZE; i++)
-			{
-				EEPROM.write(i, 0);
-			}
-			EEPROM.commit();
+			if (SPIFFS.exists("/data.json"))
+				SPIFFS.remove(DATA_JSON);
 			ESP.restart();
 		}
 
@@ -710,11 +727,27 @@ void loop()
 
 								//Serial.println(sizeof(refresh_token.c_str()));
 
-								//EEPROM.writeInt(0, refresh_token.length());
 
-								EEPROM.writeString(0, refresh_token);
+								if (SPIFFS.exists(DATA_JSON))
+									SPIFFS.remove(DATA_JSON);
 
-								EEPROM.commit();
+								File file = SPIFFS.open(DATA_JSON, "w+");
+
+								if (!file) {
+									Serial.print("Error with");
+									Serial.println(DATA_JSON);
+									ESP.restart();
+								}
+
+								String txt = "{ \"token\": \"" + refresh_token + "\"}";
+
+								checkJsonError(deserializeJson(jsonData, txt));
+
+								Serial.println(">>>> token : %s" + jsonData["token"].as<String>());
+
+								if (serializeJson(jsonData, file) == 0) {
+									Serial.println(F("Failed to write to file"));
+								}
 
 								startTimeExpire = millis();
 
@@ -907,11 +940,8 @@ void loop()
 						{
 							//client.print("<p> L'ESP redemarre et va demarrer sur le portail pour se connecter de nouveau </p></br>");
 							wm.erase();
-							for (int i = 0; i < EEPROM_SIZE; i++)
-							{
-								EEPROM.write(i, 0);
-							}
-							EEPROM.commit();
+							if (SPIFFS.exists(DATA_JSON))
+								SPIFFS.remove(DATA_JSON);
 							ESP.restart();
 
 							// Index page

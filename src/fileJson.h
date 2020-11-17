@@ -19,6 +19,9 @@ DynamicJsonDocument jsonCalendarList(8192);
 // The color definitions for calendars and events.
 DynamicJsonDocument jsonColor(4096);
 
+// The data definitions to save data of calendars and events.
+DynamicJsonDocument jsonData(4096);
+
 // Error json
 //DeserializationError errorJson;
 
