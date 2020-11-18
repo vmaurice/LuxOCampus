@@ -68,7 +68,8 @@ char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
 #define DATA_PIN 	23
 #define CLOCK_PIN 	18
 #define NUM_LEDS    13
-#define BRIGHTNESS  64
+#define BRIGHTNESS  255
+#define SATURATION 	255
 #define LED_TYPE    SK9822
 #define COLOR_ORDER BGR
 

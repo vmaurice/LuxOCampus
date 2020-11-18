@@ -250,65 +250,6 @@ void colorCalendar()
 }
 
 
-CRGB wheel(int WheelPos, int dim)
-{
-  CRGB color;
-  if (85 > WheelPos)
-  {
-   color.r=0;
-   color.g=WheelPos * 3/dim;
-   color.b=(255 - WheelPos * 3)/dim;;
-  } 
-  else if (170 > WheelPos)
-  {
-   color.r=WheelPos * 3/dim;
-   color.g=(255 - WheelPos * 3)/dim;
-   color.b=0;
-  }
-  else
-  {
-   color.r=(255 - WheelPos * 3)/dim;
-   color.g=0;
-   color.b=WheelPos * 3/dim;
-  }
-  return color;
-}
-
-
-
-void rainbowCycle(int wait, int cycles, int dim)
-{
-  //Serial.println("Let's make a rainbow.");
-  //loop several times with same configurations and same delay
-  for(int cycle=0; cycle < cycles; cycle++)
-  {
-    byte dir=random(0,2);
-    int k=255;
-
-    //loop through all colors in the wheel
-    for (int j=0; j < 256; j++,k--)
-    {
-      
-      if(k<0)
-      {
-        k=255;
-      }
-      
-      //Set RGB color of each LED
-      for(int i=0; i<NUM_LEDS; i++)
-      {
-        CRGB ledColor = wheel(((i * 256 / NUM_LEDS) + (dir==0?j:k)) % 256,dim);        
-        leds[i]=ledColor;
-      }
-
-      FastLED.show();
-      FastLED.delay(wait);
-    }
-  }
-}
-
-
-
 // thread for led
 TaskHandle_t taskLed;
 String colorInst = "";
@@ -339,18 +280,13 @@ void ledThread(void * pvParameters) {
 		} 
 		else
 		{
-			
-			randomSeed(millis());
-
-			int wait=random(10,30);
-			int dim=random(4,6);
-			int max_cycles=8;
-			int cycles=random(1,max_cycles+1);
-
-			rainbowCycle(wait, cycles, dim);
-			
-			//fill_rainbow( leds, NUM_LEDS, 0, 1);
-			//FastLED.show();
+			for (int j = 0; j < 255; j++) {
+				for (int i = 0; i < NUM_LEDS; i++) {
+				leds[i] = CHSV(i - (j * 2), BRIGHTNESS, SATURATION); /* The higher the value 4 the less fade there is and vice versa */ 
+				}
+				FastLED.show();
+				delay(20); /* Change this to your hearts desire, the lower the value the faster your colors move (and vice versa) */
+			}
 		}
 		yield();
 	}
@@ -455,6 +391,7 @@ void setup()
 
 	FastLED.addLeds<LED_TYPE, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, NUM_LEDS);
   	FastLED.setBrightness(  BRIGHTNESS );
+	FastLED.setCorrection(0xFFF0F0);
 
 	startTimeExpire = millis();
 	
