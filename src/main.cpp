@@ -707,6 +707,9 @@ void loop()
 									{
 										//Serial.println(">>>> find demo");
 										listSubCalendar.clear();
+										listColorCalendar.clear();
+										listColorCalendar.push_back(rainbow);
+										selectCalendars.clear();
 									}
 									else 
 									{
