@@ -11,7 +11,7 @@ int jsonCapacityGoogleToken = capacity;
 
 
 // The events of Google 
-int jsonCapacityCalendar = 16384;
+int jsonCapacityCalendar = 32768;
 
 // The list of sub-calendars 
 int jsonCapacityCalendarList = 8192;

@@ -79,7 +79,7 @@ void getEvent()
 
 
 	// The list of sub-calendars 
-	DynamicJsonDocument jsonCalendarList(8192);
+	DynamicJsonDocument jsonCalendarList(jsonCapacityCalendarList);
 
 	checkJsonError(deserializeJson(jsonCalendarList, selectCalendars));
 
@@ -228,7 +228,7 @@ void colorCalendar()
 							int dif = difftime(mktime(&value.startDate), mktime(&dateTime)) - difftime(mktime(&lastTime), mktime(&dateTime));
 							if (dif == 0)
 							{
-								listColorCalendar.clear();
+								//listColorCalendar.clear();
 								listColorCalendar.push_back(value);
 							}
 							else if (dif < 0)
@@ -261,9 +261,10 @@ void ledThread(void * pvParameters) {
 		//Serial.println(xPortGetCoreID());
 		if (!listColorCalendar.empty() && listColorCalendar[0].name != "rainbow") 
 		{
-			for (auto value: listColorCalendar) {
+			int i = 0;
+			while (i < listColorCalendar.size()) {
 				//Serial.println(value.name);
-				colorInst = value.color;
+				colorInst = listColorCalendar[i].color;
 				//Serial.println(colorInst);
 				colorInst = "0x" + colorInst.substring(1,colorInst.length());
 				//Serial.println(colorInst);
@@ -275,7 +276,8 @@ void ledThread(void * pvParameters) {
 				for (int i = 0; i<NUM_LEDS; i++)
 					leds[i] = colorValue;
 				FastLED.show();
-				delay(100);
+				delay(delay_shift_color);
+				i++;
 			}
 		} 
 		else
@@ -568,7 +570,12 @@ void loop()
 						client.println("Content-type:text/html; charset=UTF-8");
 						client.println();
 
-						client.println("<!DOCTYPE html><html></body>");
+						client.println("<!DOCTYPE html><html>");
+
+						client.println("<head><meta charset=\"UTF-8\">");
+						client.println("<title>LuxOCampus</title>");
+
+						client.println("</head><body>");
 
 						client.print("<h1 style=\"color:blue;text-align:center;\"><a style=\"text-decoration: none;color:inherit;\" href=\"/\">LuxOCampus</a></h1>");
 

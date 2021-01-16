@@ -62,6 +62,8 @@ char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
 
 /*     LED     */
 
+int delay_shift_color = 10000;
+
 // Led
 #include <FastLED.h>
 
