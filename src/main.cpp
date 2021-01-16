@@ -94,6 +94,8 @@ void getEvent()
 		
 		if (request.httpResponseCode == 200)
 		{
+			if (value["summary"] == value["id"])
+				username = value["summary"].as<String>();
 			allEvents += request.httpResponse;
 			allEvents += ", ";
 		}
@@ -515,6 +517,8 @@ void loop()
 				request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
 				if (request.httpResponseCode == 200)
 				{
+					if (value["summary"] == value["id"])
+						username = value["summary"].as<String>();
 					//Serial.print(value["summary"].as<String>());
 					arrayCalendarList.push_back(value);
 					if (jsonDataSave.containsKey(value["summary"].as<String>())) {
@@ -574,8 +578,10 @@ void loop()
 
 						client.println("<head><meta charset=\"UTF-8\">");
 						client.println("<title>LuxOCampus</title>");
+						client.println("<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\"><link href=\"https://fonts.googleapis.com/css2?family=Open+Sans&display=swap\" rel=\"stylesheet\">");
 
-						client.println("</head><body>");
+
+						client.println("</head><body style='font-family: open sans;'>");
 
 						client.print("<h1 style=\"color:blue;text-align:center;\"><a style=\"text-decoration: none;color:inherit;\" href=\"/\">LuxOCampus</a></h1>");
 
@@ -765,10 +771,42 @@ void loop()
 
 								client.print("<h2>Informations : </h2>");
 
-								client.print("<p>La dernière mise à jour : " + (String)dateTimeChar + "</p>");
+								client.print("<p>Connecté avec le compte google : " + username + "</p>");
+
+								client.print("<p>La dernière mise à jour le " + (String)dateTime.tm_mday + "-" + (String) (dateTime.tm_mon + 1) + "-" + (String) (dateTime.tm_year + 1900) + " à " + (String)dateTime.tm_hour + ":" + (String)dateTime.tm_min + ":" + (String)dateTime.tm_sec + "</p>");
 								client.print("<p>Les événements vont du " + (String)dateTimeMin + " à " + (String)dateTimeMax + "</p></br>");
 
-								client.print("<h2>Les sous-calendriers : </h2>");
+								client.print("</br>");
+
+								colorCalendar();
+
+								if (listColorCalendar.size() > 1) 
+									client.println("<h2>Les prochains événements affichés sont : </h2>");
+								else
+									client.println("<h2>Le prochain événement affiché est : </h2>");
+
+
+
+								if (listColorCalendar.size() == 0 or listColorCalendar[0].name == "rainbow") {
+									client.println("<p>Mode démo (Rainbow)</p>");
+								}
+								else {
+									client.print("<table style='width: 90%;'>");
+									client.print("<tr style='text-align: left;'><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
+
+									for (auto value : listColorCalendar)
+									{
+										client.print("<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>");
+									}
+									client.print("</table>");
+
+								}
+
+								client.print("</br>");
+								
+
+
+								client.print("<h2>L'ensemble des résultats pour chaque calendier sélectionné (max 10) : </h2>");
 
 								if (listSubCalendar.empty()) 
 								{
@@ -780,31 +818,27 @@ void loop()
 
 									for (auto subCal : listSubCalendar)
 									{
-										client.print("<h3>" + subCal.name + "</h3>");
+										client.print("<h3>" + username + "/" + subCal.name + " : </h3>");
+
+										client.print("<table style='width: 90%;'>");
+										client.print("<tr style='text-align: left;'><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
+
 										for (auto value : subCal.listEvents)
 										{
 											char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
 											strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
 											char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
 											strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
-											client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
+											//client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
+											client.print("<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>");
 										}
+
+										client.print("</table>");
 									}
 								}
 
 
-								client.print("</br>");
-
-								colorCalendar();
-
-								client.println("<h2>Prochain événement(s) affiché sur le calendrier : </h2>");
-								for (auto value : listColorCalendar)
-								{
-									if (value.name == "rainbow")
-										client.println("<p>Mode démo : " + value.name + "</p>");
-									else
-										client.println("<p style='color: " + value.color + "'>" + value.name + ", color : " + value.color + "</p>");
-								}
+								
 
 								client.print("</br></br>");
 
@@ -863,6 +897,8 @@ void loop()
 								request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
 								if (request.httpResponseCode == 200)
 								{
+									if (value["summary"] == value["id"])
+										username = value["summary"].as<String>();
 									//Serial.print(value["summary"].as<String>());
 									arrayCalendarList.push_back(value);
 								}
@@ -888,11 +924,22 @@ void loop()
 							client.print("</br></br>");
 
 							client.print("<a href=\"/\"> Retour page accueil </a></br>");
+						}
 
-						
+						// Disconnect of google account
+						else if (header.indexOf("GET /disconnect_google") >= 0) {
+							if (SPIFFS.exists(DATA_JSON))
+								SPIFFS.remove(DATA_JSON);
+							access_token.clear();
+							listSubCalendar.clear();
+							listColorCalendar.clear();
+							listColorCalendar.push_back(rainbow);
+							selectCalendars.clear();
+							client.print("<p>Le compte Google a bien été enlevé</p>");
+							client.print("<p><a href=\"/\"> Retour page accueil </a></p></br>");
+						}
 						
 						// Disconnect the esp of box and restart
-						}
 						else if (header.indexOf("GET /disconnect") >= 0)
 						{
 							//client.print("<p> L'ESP redemarre et va demarrer sur le portail pour se connecter de nouveau </p></br>");
@@ -909,10 +956,13 @@ void loop()
 								client.print("<p><a href=\"/google\"> Se connecter à google. </a></p></br>");
 							else
 							{
+								client.print("<p> Votre compte Google est " + username + "</p></br>");
+								client.print("<p> Notice</p>");
 								client.print("<p><a href=\"/result\"> Les prochains événements. </a></p>");
 								client.print("<p><a href=\"/choosecalendar\"> Modifier la sélection des sous calendiers du compte. </a></p></br></br>");
+								client.print("<p><a href=\"/disconnect_google\"> Se déconnecter du compte google.</a></p>");
 							}
-							client.print("<p><a href=\"/disconnect\"> Se déconnecter et redémarrer sur le portail captif. </a></p");
+							client.print("<p><a href=\"/disconnect\"> Se déconnecter de la borne wifi et redémarrer sur le portail captif. </a></p");
 						}
 
 						client.print("</body></html>");

@@ -20,6 +20,8 @@ String saveCalendars;
 #include <map>
 #include <vector>
 
+String username = "";
+
 /*     Web      */
 
 WiFiManager wm; // global wm instance
