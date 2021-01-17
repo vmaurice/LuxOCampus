@@ -426,6 +426,8 @@ void setup()
 		ESP.restart();
 		}, handleUpdatePost);
 
+	server.onNotFound(handleRoot);
+
 	server.begin();
 }
 
@@ -930,7 +932,9 @@ void handleGoogle()
 		page += "<a target=\"_blank\" href=\"" + url_google + "\"> Copie le code ci dessous puis clique ici pour s'authentifier à Google. </a><br>";
 		page += "<p> code à copier : " + user_code + "</p><br></br>";
 
-		server.send(200, "text/html", page);
+		server.send(100, "text/html", page);
+
+		page = "";
 
 		delay(10000);
 
