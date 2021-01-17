@@ -22,6 +22,10 @@ String saveCalendars;
 
 String username = "";
 
+/* 	   CSS		*/
+
+#include "style.h"
+
 /*     Web      */
 
 WiFiManager wm; // global wm instance

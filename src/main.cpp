@@ -578,12 +578,12 @@ void loop()
 
 						client.println("<head><meta charset=\"UTF-8\">");
 						client.println("<title>LuxOCampus</title>");
-						client.println("<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\"><link href=\"https://fonts.googleapis.com/css2?family=Open+Sans&display=swap\" rel=\"stylesheet\">");
+						client.println(style_font_open_sans);
 
 
-						client.println("</head><body style='font-family: open sans;'>");
+						client.println("</head><body " + (String)style_body + ">");
 
-						client.print("<h1 style=\"color:blue;text-align:center;\"><a style=\"text-decoration: none;color:inherit;\" href=\"/\">LuxOCampus</a></h1>");
+						client.print("<h1 " + (String)style_h1 + "><a " + (String)style_h1_a + " href=\"/\">LuxOCampus</a></h1>");
 
 						// Authentification the esp32 with the google account
 						if (header.indexOf("GET /google") >= 0)
@@ -791,8 +791,8 @@ void loop()
 									client.println("<p>Mode démo (Rainbow)</p>");
 								}
 								else {
-									client.print("<table style='width: 90%;'>");
-									client.print("<tr style='text-align: left;'><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
+									client.print("<table " + (String)style_table + ">");
+									client.print("<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
 
 									for (auto value : listColorCalendar)
 									{
@@ -820,8 +820,8 @@ void loop()
 									{
 										client.print("<h3>" + username + "/" + subCal.name + " : </h3>");
 
-										client.print("<table style='width: 90%;'>");
-										client.print("<tr style='text-align: left;'><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
+										client.print("<table " + (String)style_table + ">");
+										client.print("<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
 
 										for (auto value : subCal.listEvents)
 										{
