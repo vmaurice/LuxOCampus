@@ -412,12 +412,24 @@ void setup()
 
 	//Serial.print("setup() running on core ");
   	//Serial.println(xPortGetCoreID());
+
+	server.on("/", handleRoot);
+	server.on("/result", handleResult);
+	server.on("/choosecalendar", handleChooseCalendar);
+	server.on("/disconnect", handleDisconnect);
+	server.on("/disconnect_google", handleDisconnectGoogle);
+	server.on("/google", handleGoogle);
+	server.on("/update", handleUpdate);
+	server.on("/update_post", handleUpdatePost);
+
+	server.begin();
 }
 
 void loop()
 {
 	// put your main code here, to run repeatedly: 
 	
+	server.handleClient();
 
 
 	if ((millis() - startTimeExpire > (expire - 120000) && expire != 0) || (expire == 0 && refresh_token != ""))
@@ -538,8 +550,6 @@ void loop()
 		elapsedTime = millis();
 	}
 
-	client = server.available(); // listen for incoming clients
-
 	if (millis() - elapsedTime > TIME_REFRESH && access_token != "")
 	{
 		//Serial.print("loop() running on core ");
@@ -549,471 +559,496 @@ void loop()
 		elapsedTime = millis();
 	}
 
-	if (client)
-	{								   // if you get a client,
-		Serial.println("New Client."); // print a message out the serial port
-		String currentLine = "";	   // make a String to hold incoming data from the client
-		while (client.connected())
-		{ // loop while the client's connected
+	/*
 
-			if (client.available())
-			{							// if there's bytes to read from the client,
-				char c = client.read(); // read a byte, then
-				Serial.write(c);		// print it out the serial monitor
-				header += c;
-				if (c == '\n')
-				{ // if the byte is a newline character
+						
 
-					// if the current line is blank, you got two newline characters in a row.
-					// that's the end of the client HTTP request, so send a response:
-					if (currentLine.length() == 0)
+						
+
+
+	*/
+
+	
+
+}
+// "HTTP/1.1 200 OK \ Content-type:text/html; charset=UTF-8
+
+String pageStart = "<!DOCTYPE html><html> \
+					<head><meta charset=\"UTF-8\"> \
+					<title>LuxOCampus</title> \
+					" + (String)style_font_open_sans + " \
+					</head><body " + (String)style_body + "> \
+					<h1 " + (String)style_h1 + "><a " + (String)style_h1_a + " href=\"/\">LuxOCampus</a></h1>";
+
+String pageEnd = "</body></html>";
+
+void handleRoot() 
+{
+	String page = pageStart;
+    if (access_token.isEmpty())
+        page += "<p><a href=\"/google\"> Se connecter à google. </a></p></br>";
+    else
+    {
+        page += "<h2> Votre compte Google est " + username + "</h2></br>";
+        
+        // display current event
+        if (listColorCalendar.size() > 1) 
+            page += "<h3>Les prochains événements affichés sont : </h3>";
+        else
+        	page += "<h3>Le prochain événement affiché est : </h3>";
+
+
+
+        if (listColorCalendar.size() == 0 or listColorCalendar[0].name == "rainbow") {
+            page += "<p>Mode démo (Rainbow)</p>";
+        }
+        else {
+            page += "<table " + (String)style_table + ">";
+            page += "<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>";
+
+            for (auto value : listColorCalendar)
+            {
+                page += "<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+            }
+            page += "</table>";
+
+        }
+
+        page += "</br></br>";
+
+
+        page += "<p> Notice.</p>";
+        page += "<p><a href=\"/update\"> Update. </a></p>";
+        page += "<p><a href=\"/result\"> Les prochains événements. </a></p>";
+        page += "<p><a href=\"/choosecalendar\"> Modifier la sélection des sous calendiers du compte. </a></p></br></br>";
+        page += "<p><a href=\"/disconnect_google\"> Se déconnecter du compte google.</a></p>";
+    }
+    page += "<p><a href=\"/disconnect\"> Se déconnecter de la borne wifi et redémarrer sur le portail captif. </a></p";
+
+	page += pageEnd;
+
+	server.send(200, "text/html", page);
+}
+
+void handleResult()
+{
+	String page = pageStart;
+	
+	if (access_token == "")
+	{
+		page +="<p>Aucun compte google</p>";
+	}
+	else
+	{
+
+		if (server.args() > 0)
+		{
+			if (server.hasArg("demo") and server.arg("demo") == "on") 
+			{
+				//Serial.println(">>>> find demo");
+				listSubCalendar.clear();
+				listColorCalendar.clear();
+				listColorCalendar.push_back(rainbow);
+				selectCalendars.clear();
+			}
+			else 
+			{
+				String txtJsonData = "{ \"token\": \"" + refresh_token + "\", \"calendars\" : {";
+
+				selectCalendars = "{ \"Calendar\": [ ";
+				for (int i = 0; i < arrayCalendarList.size(); i++)
+				{
+					if (server.hasArg((String)i) and server.arg((String)i) == "on")
 					{
-						// HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-						// and a content-type so the client knows what's coming, then a blank line:
-						client.println("HTTP/1.1 200 OK");
-						client.println("Content-type:text/html; charset=UTF-8");
-						client.println();
-
-						client.println("<!DOCTYPE html><html>");
-
-						client.println("<head><meta charset=\"UTF-8\">");
-						client.println("<title>LuxOCampus</title>");
-						client.println(style_font_open_sans);
-
-
-						client.println("</head><body " + (String)style_body + ">");
-
-						client.print("<h1 " + (String)style_h1 + "><a " + (String)style_h1_a + " href=\"/\">LuxOCampus</a></h1>");
-
-						// Authentification the esp32 with the google account
-						if (header.indexOf("GET /google") >= 0)
-						{
-							// We now create a URI for the request
-
-							if (access_token == "")
-							{
-
-								url = "client_id=" + client_id +
-									  "&scope=https://www.googleapis.com/auth/calendar.readonly";
-
-								Serial.print("Requesting URL: ");
-								Serial.println(url);
-
-								request = httpPost("/device/code", url);
-
-								request.httpResponseCode = -1;
-
-								DynamicJsonDocument googleConnect(jsonCapacitygoogleConnect);
-
-								// Deserialize the JSON document and Test if parsing succeeds.
-								checkJsonError(deserializeJson(googleConnect, request.httpResponse));
-
-								url_google = googleConnect["verification_url"].as<String>();
-								user_code = googleConnect["user_code"].as<String>();
-								device_code = googleConnect["device_code"].as<String>();
-
-								Serial.println(url_google);
-								Serial.println(user_code);
-
-								// the content of the HTTP response follows the header:
-								client.print("<a target=\"_blank\" href=\"" + url_google + "\"> Copie le code ci dessous puis clique ici pour s'authentifier à Google. </a><br>");
-								client.print("<p> code à copier : " + user_code + "</p><br></br>");
-
-								delay(10000);
-
-								url = "client_id=" + client_id +
-									  "&client_secret=" + client_secret +
-									  "&device_code=" + device_code +
-									  "&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code";
-
-								Serial.println(url);
-
-								request = httpPost("/token", url);
-
-								while (request.httpResponseCode != 200)
-								{
-									request = httpPost("/token", url);
-									//Serial.println(request.httpResponseCode);
-									delay(3000);
-								}
-
-								DynamicJsonDocument googleToken(jsonCapacityGoogleToken);
-
-								// Deserialize the JSON document and Test if parsing succeeds.
-								checkJsonError(deserializeJson(googleToken, request.httpResponse));
-
-								access_token = googleToken["access_token"].as<String>();
-								refresh_token = googleToken["refresh_token"].as<String>();
-								expire = googleToken["expires_in"].as<int>() * 1000;
-
-								//Serial.println(sizeof(refresh_token.c_str()));
-
-
-								if (SPIFFS.exists(DATA_JSON))
-									SPIFFS.remove(DATA_JSON);
-
-								File file = SPIFFS.open(DATA_JSON, "w+");
-
-								if (!file) {
-									Serial.print("Error with");
-									Serial.println(DATA_JSON);
-									ESP.restart();
-								}
-
-								String txt = "{ \"token\": \"" + refresh_token + "\"}";
-
-								DynamicJsonDocument jsonDataSave(jsonCapacityDataSave);
-
-								checkJsonError(deserializeJson(jsonDataSave, txt));
-
-								Serial.println(">>>> token : %s" + jsonDataSave["token"].as<String>());
-
-								if (serializeJson(jsonDataSave, file) == 0) {
-									Serial.println(F("Failed to write to file"));
-								}
-
-								startTimeExpire = millis();
-
-								Serial.println(access_token);
-								Serial.println(refresh_token);
-								Serial.println(expire);
-
-								// get the color
-
-								request = httpGet("https://www.googleapis.com/calendar/v3/colors?access_token=" + access_token);
-
-								//DynamicJsonDocument jsonColor(jsonCapacityJsonColor);
-
-								// Deserialize the JSON document and Test if parsing succeeds.
-								//checkJsonError(deserializeJson(jsonColor, request.httpResponse));
-
-								if (request.httpResponseCode != 200)
-								{
-									Serial.println("Error request colors");
-									return;
-								}
-
-								googleColor = request.httpResponse;
-
-								client.print("<a href=\"/result\"> Clique ici pour voir les événements </a></br>");
-							}
-							else
-							{
-								client.print("<p> Vous êtes bien connecté </p></br>");
-							}
-							client.print("<a href=\"/\"> Retour page accueil </a></br>");
-
-							// Print the events between 24h before and after of sub-calendars selected. If selectCalendar is empty, all sub-calendars selected.
-						}
-						else if (header.indexOf("GET /result") >= 0)
-						{
-							if (access_token == "")
-							{
-								client.print("<p>Aucun compte google</p>");
-							}
-							else
-							{
-
-								if (header.indexOf("GET /result?") >= 0)
-								{
-									if (header.indexOf("demo=on") > 0) 
-									{
-										//Serial.println(">>>> find demo");
-										listSubCalendar.clear();
-										listColorCalendar.clear();
-										listColorCalendar.push_back(rainbow);
-										selectCalendars.clear();
-									}
-									else 
-									{
-										String txtJsonData = "{ \"token\": \"" + refresh_token + "\", \"calendars\" : {";
-
-										selectCalendars = "{ \"Calendar\": [ ";
-										for (int i = 0; i < arrayCalendarList.size(); i++)
-										{
-											if (header.indexOf((String)i + "=on") > 0)
-											{
-												//client.print(arrayCalendarList[i]["summary"].as<String>() + "</br>");
-												selectCalendars += arrayCalendarList[i].as<String>() + ",";
-												txtJsonData += "\"" + arrayCalendarList[i]["summary"].as<String>() + "\" : " + arrayCalendarList[i]["etag"].as<String>() + ",";
-											}
-										}
-										selectCalendars = selectCalendars.substring(0, selectCalendars.length()-1);
-										selectCalendars += " ] }";
-										//Serial.println(selectCalendars);
-										
-										txtJsonData = txtJsonData.substring(0, txtJsonData.length() - 1);
-										txtJsonData += "} }";
-
-										Serial.println(txtJsonData);
-										//Serial.println(txtJsonData.length());
-
-										StaticJsonDocument<512> jsonDataSave;
-
-										checkJsonError(deserializeJson(jsonDataSave, txtJsonData));
-
-										if (SPIFFS.exists(DATA_JSON))
-											SPIFFS.remove(DATA_JSON);
-
-										File file = SPIFFS.open(DATA_JSON, "w+");
-
-										if (serializeJson(jsonDataSave, file) == 0) {
-											Serial.println(F("Failed to write to file"));
-										}
-
-										file.close();
-									}
-								}
-
-								
-								// print the events between 1 day before and 7 days after of calendar selected
-								getEvent();
-
-								client.print("<h2>Informations : </h2>");
-
-								client.print("<p>Connecté avec le compte google : " + username + "</p>");
-
-								client.print("<p>La dernière mise à jour le " + (String)dateTime.tm_mday + "-" + (String) (dateTime.tm_mon + 1) + "-" + (String) (dateTime.tm_year + 1900) + " à " + (String)dateTime.tm_hour + ":" + (String)dateTime.tm_min + ":" + (String)dateTime.tm_sec + "</p>");
-								client.print("<p>Les événements vont du " + (String)dateTimeMin + " à " + (String)dateTimeMax + "</p></br>");
-
-								client.print("</br>");
-
-								colorCalendar();
-
-								if (listColorCalendar.size() > 1) 
-									client.println("<h2>Les prochains événements affichés sont : </h2>");
-								else
-									client.println("<h2>Le prochain événement affiché est : </h2>");
-
-
-
-								if (listColorCalendar.size() == 0 or listColorCalendar[0].name == "rainbow") {
-									client.println("<p>Mode démo (Rainbow)</p>");
-								}
-								else {
-									client.print("<table " + (String)style_table + ">");
-									client.print("<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
-
-									for (auto value : listColorCalendar)
-									{
-										client.print("<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>");
-									}
-									client.print("</table>");
-
-								}
-
-								client.print("</br>");
-								
-
-
-								client.print("<h2>L'ensemble des résultats pour chaque calendier sélectionné (max 10) : </h2>");
-
-								if (listSubCalendar.empty()) 
-								{
-									client.print("<p><a href=\"/choosecalendar\">Aucun sous-calendrier sélectionné, cliquez ici pour les sélectionner.</a></p>");
-								}
-								else 
-								{
-									String subCalendarName = "";
-
-									for (auto subCal : listSubCalendar)
-									{
-										client.print("<h3>" + username + "/" + subCal.name + " : </h3>");
-
-										client.print("<table " + (String)style_table + ">");
-										client.print("<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
-
-										for (auto value : subCal.listEvents)
-										{
-											char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
-											strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
-											char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
-											strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
-											//client.print("<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>");
-											client.print("<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>");
-										}
-
-										client.print("</table>");
-									}
-								}
-
-
-								
-
-								client.print("</br></br>");
-
-								client.print("<p><a href=\"/choosecalendar\">Modifier la sélection des sous calendiers du compte.</a></p>");
-							}
-							client.print("<a href=\"/\"> Retour page accueil </a></br>");
-
-						}
-						
-						
-						// Choose sub calendars
-						else if (header.indexOf("GET /choosecalendar") >= 0)
-						{
-							// On choisit les sous calendriers google
-							if (access_token == "")
-							{
-								client.print("<p>Aucun compte google</p>");
-								delay(1000);
-								return;
-							}
-
-							client.print("<h2>Les sous-comptes de Google :</h2>");
-
-							client.print("<p>Les calendriers sélectionnés précédemment : ");
-
-							for (auto cal: listSubCalendar) {
-								client.print(cal.name + ", ");
-							}
-
-							client.print("</p></br></br>");
-
-							client.print("<p>Les sous-calendriers :</p>");
-
-							client.print("<form action=\"/result\" method=\"get\"><div>");
-
-							// mode démo
-
-							client.print("<input type=\"checkbox\" name=\"demo\">");
-							client.print("<label for=\"demo\">  Mode démo (n'accepte pas les autres calendriers)</label></br></br>");
-							
-
-
-							// list all calendars and check if permission for each calendar
-
-							request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
-
-							DynamicJsonDocument jsonCalendarList(jsonCapacityCalendarList);
-
-							// Deserialize the JSON document and Test if parsing succeeds.
-							checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
-
-							arrayCalendarList.clear();
-
-							for (JsonVariant value : jsonCalendarList["items"].as<JsonArray>())
-							{
-								request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
-								if (request.httpResponseCode == 200)
-								{
-									if (value["summary"] == value["id"])
-										username = value["summary"].as<String>();
-									//Serial.print(value["summary"].as<String>());
-									arrayCalendarList.push_back(value);
-								}
-							}
-
-							//Serial.print(arrayCalendarList.size());
-
-							int idName = 0;
-
-							for (JsonVariant value : arrayCalendarList)
-							{
-								//client.print("<p>Summary : " + value["summary"].as<String>() + ", colorId =  " + value["colorId"].as<String>() + "</p>");
-								client.print("<input type=\"checkbox\" name=\"" + (String)idName + "\">");
-								client.print("<label for=\"" + (String)idName + "\">  " + value["summary"].as<String>() + "</label></br></br>");
-								mapSummaryColor[value["summary"].as<String>()] = value["colorId"].as<String>();
-								idName += 1;
-							}
-
-							client.print("<input type=\"submit\" value=\"Validé\">");
-
-							client.print("</div></form>");
-
-							client.print("</br></br>");
-
-							client.print("<a href=\"/\"> Retour page accueil </a></br>");
-						}
-
-						// Disconnect of google account
-						else if (header.indexOf("GET /disconnect_google") >= 0) {
-							if (SPIFFS.exists(DATA_JSON))
-								SPIFFS.remove(DATA_JSON);
-							access_token.clear();
-							listSubCalendar.clear();
-							listColorCalendar.clear();
-							listColorCalendar.push_back(rainbow);
-							selectCalendars.clear();
-							client.print("<p>Le compte Google a bien été enlevé</p>");
-							client.print("<p><a href=\"/\"> Retour page accueil </a></p></br>");
-						}
-						
-						// Disconnect the esp of box and restart
-						else if (header.indexOf("GET /disconnect") >= 0)
-						{
-							//client.print("<p> L'ESP redemarre et va demarrer sur le portail pour se connecter de nouveau </p></br>");
-							wm.erase();
-							if (SPIFFS.exists(DATA_JSON))
-								SPIFFS.remove(DATA_JSON);
-							ESP.restart();
-
-							// Index page
-						}
-						else
-						{
-							if (access_token.isEmpty())
-								client.print("<p><a href=\"/google\"> Se connecter à google. </a></p></br>");
-							else
-							{
-								client.print("<h2> Votre compte Google est " + username + "</h2></br>");
-								
-								// display current event
-								if (listColorCalendar.size() > 1) 
-									client.println("<h3>Les prochains événements affichés sont : </h3>");
-								else
-									client.println("<h3>Le prochain événement affiché est : </h3>");
-
-
-
-								if (listColorCalendar.size() == 0 or listColorCalendar[0].name == "rainbow") {
-									client.println("<p>Mode démo (Rainbow)</p>");
-								}
-								else {
-									client.print("<table " + (String)style_table + ">");
-									client.print("<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
-
-									for (auto value : listColorCalendar)
-									{
-										client.print("<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>");
-									}
-									client.print("</table>");
-
-								}
-
-								client.print("</br></br>");
-
-
-								client.print("<p> Notice</p>");
-								client.print("<p><a href=\"/result\"> Les prochains événements. </a></p>");
-								client.print("<p><a href=\"/choosecalendar\"> Modifier la sélection des sous calendiers du compte. </a></p></br></br>");
-								client.print("<p><a href=\"/disconnect_google\"> Se déconnecter du compte google.</a></p>");
-							}
-							client.print("<p><a href=\"/disconnect\"> Se déconnecter de la borne wifi et redémarrer sur le portail captif. </a></p");
-						}
-
-						client.print("</body></html>");
-
-						// The HTTP response ends with another blank line:
-						client.println();
-
-						// break out of the while loop:
-						break;
-					}
-					else
-					{ // if you got a newline, then clear currentLine:
-						currentLine = "";
+						//page +=arrayCalendarList[i]["summary"].as<String>() + "</br>");
+						selectCalendars += arrayCalendarList[i].as<String>() + ",";
+						txtJsonData += "\"" + arrayCalendarList[i]["summary"].as<String>() + "\" : " + arrayCalendarList[i]["etag"].as<String>() + ",";
 					}
 				}
-				else if (c != '\r')
-				{					  // if you got anything else but a carriage return character,
-					currentLine += c; // add it to the end of the currentLine
+				selectCalendars = selectCalendars.substring(0, selectCalendars.length()-1);
+				selectCalendars += " ] }";
+				//Serial.println(selectCalendars);
+				
+				txtJsonData = txtJsonData.substring(0, txtJsonData.length() - 1);
+				txtJsonData += "} }";
+
+				Serial.println(txtJsonData);
+				//Serial.println(txtJsonData.length());
+
+				StaticJsonDocument<512> jsonDataSave;
+
+				checkJsonError(deserializeJson(jsonDataSave, txtJsonData));
+
+				if (SPIFFS.exists(DATA_JSON))
+					SPIFFS.remove(DATA_JSON);
+
+				File file = SPIFFS.open(DATA_JSON, "w+");
+
+				if (serializeJson(jsonDataSave, file) == 0) {
+					Serial.println(F("Failed to write to file"));
 				}
+
+				file.close();
 			}
 		}
-		// close the connection:
-		header = "";
-		client.stop();
-		Serial.println("Client Disconnected.");
+
+		
+		// print the events between 1 day before and 7 days after of calendar selected
+		getEvent();
+
+		page +="<h2>Informations : </h2>";
+
+		page +="<p>Connecté avec le compte google : " + username + "</p>";
+
+		page +="<p>La dernière mise à jour le " + (String)dateTime.tm_mday + "-" + (String) (dateTime.tm_mon + 1) + "-" + (String) (dateTime.tm_year + 1900) + " à " + (String)dateTime.tm_hour + ":" + (String)dateTime.tm_min + ":" + (String)dateTime.tm_sec + "</p>";
+		page +="<p>Les événements vont du " + (String)dateTimeMin + " à " + (String)dateTimeMax + "</p></br>";
+
+		page +="</br>";
+
+		colorCalendar();
+
+		if (listColorCalendar.size() > 1) 
+			page += "<h2>Les prochains événements affichés sont : </h2>";
+		else
+			page += "<h2>Le prochain événement affiché est : </h2>";
+
+
+
+		if (listColorCalendar.size() == 0 or listColorCalendar[0].name == "rainbow") {
+			page += "<p>Mode démo (Rainbow)</p>";
+		}
+		else {
+			page +="<table " + (String)style_table + ">";
+			page +="<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>";
+
+			for (auto value : listColorCalendar)
+			{
+				page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+			}
+			page +="</table>";
+
+		}
+
+		page +="</br>";
+		
+
+
+		page +="<h2>L'ensemble des résultats pour chaque calendier sélectionné (max 10) : </h2>";
+
+		if (listSubCalendar.empty()) 
+		{
+			page +="<p><a href=\"/choosecalendar\">Aucun sous-calendrier sélectionné, cliquez ici pour les sélectionner.</a></p>";
+		}
+		else 
+		{
+			String subCalendarName = "";
+
+			for (auto subCal : listSubCalendar)
+			{
+				page +="<h3>" + username + "/" + subCal.name + " : </h3>";
+
+				page +="<table " + (String)style_table + ">";
+				page +="<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>";
+
+				for (auto value : subCal.listEvents)
+				{
+					char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
+					strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
+					char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
+					strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
+					//page +="<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>";
+					page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+				}
+
+				page +="</table>";
+			}
+		}
+
+
+		
+
+		page +="</br></br>";
+
+		page +="<p><a href=\"/choosecalendar\">Modifier la sélection des sous calendiers du compte.</a></p>";
 	}
+	page +="<a href=\"/\"> Retour page accueil </a></br>";
+
+	page += pageEnd;
+
+	server.send(200, "text/html", page);
+}
+
+void handleChooseCalendar() 
+{
+	String page = pageStart;
+
+	// On choisit les sous calendriers google
+	if (access_token == "")
+	{
+		page +="<p>Aucun compte google</p>";
+		delay(1000);
+		return;
+	}
+
+	page +="<h2>Les sous-comptes de Google :</h2>";
+
+	page +="<p>Les calendriers sélectionnés précédemment : ";
+
+	for (auto cal: listSubCalendar) {
+		page +=cal.name + ", ";
+	}
+
+	page +="</p></br></br>";
+
+	page +="<p>Les sous-calendriers :</p>";
+
+	page +="<form action=\"/result\" method=\"get\"><div>";
+
+	// mode démo
+
+	page +="<input type=\"checkbox\" name=\"demo\">";
+	page +="<label for=\"demo\">  Mode démo (n'accepte pas les autres calendriers)</label></br></br>";
+	
+
+
+	// list all calendars and check if permission for each calendar
+
+	request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
+
+	DynamicJsonDocument jsonCalendarList(jsonCapacityCalendarList);
+
+	// Deserialize the JSON document and Test if parsing succeeds.
+	checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
+
+	arrayCalendarList.clear();
+
+	for (JsonVariant value : jsonCalendarList["items"].as<JsonArray>())
+	{
+		request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
+		if (request.httpResponseCode == 200)
+		{
+			if (value["summary"] == value["id"])
+				username = value["summary"].as<String>();
+			//Serial.print(value["summary"].as<String>());
+			arrayCalendarList.push_back(value);
+		}
+	}
+
+	//Serial.print(arrayCalendarList.size());
+
+	int idName = 0;
+
+	for (JsonVariant value : arrayCalendarList)
+	{
+		//page +="<p>Summary : " + value["summary"].as<String>() + ", colorId =  " + value["colorId"].as<String>() + "</p>");
+		page +="<input type=\"checkbox\" name=\"" + (String)idName + "\">";
+		page +="<label for=\"" + (String)idName + "\">  " + value["summary"].as<String>() + "</label></br></br>";
+		mapSummaryColor[value["summary"].as<String>()] = value["colorId"].as<String>();
+		idName += 1;
+	}
+
+	page +="<input type=\"submit\" value=\"Validé\">";
+
+	page +="</div></form>";
+
+	page +="</br></br>";
+
+	page +="<a href=\"/\"> Retour page accueil </a></br>";
+
+	page += pageEnd;
+
+	server.send(200, "text/html", page);
+}
+
+
+// Disconnect of google account
+void handleDisconnectGoogle() 
+{
+	String page = pageStart;
+	if (SPIFFS.exists(DATA_JSON))
+		SPIFFS.remove(DATA_JSON);
+	access_token.clear();
+	listSubCalendar.clear();
+	listColorCalendar.clear();
+	listColorCalendar.push_back(rainbow);
+	selectCalendars.clear();
+	page += "<p>Le compte Google a bien été enlevé</p>";
+	page += "<p><a href=\"/\"> Retour page accueil </a></p></br>";
+	
+	page += pageEnd;
+	server.send(200, "text/html", page);
+}
+
+
+// Disconnect the esp of box and restart
+void handleDisconnect() 
+{
+	//Serial.println("flash esp32 and reboot");
+	wm.erase();
+	if (SPIFFS.exists(DATA_JSON))
+		SPIFFS.remove(DATA_JSON);
+	ESP.restart();
+}
+
+
+// Connect to google
+void handleGoogle()
+{
+
+	String page = pageStart;
+
+	if (access_token == "")
+	{
+
+		url = "client_id=" + client_id +
+				"&scope=https://www.googleapis.com/auth/calendar.readonly";
+
+		Serial.print("Requesting URL: ");
+		Serial.println(url);
+
+		request = httpPost("/device/code", url);
+
+		request.httpResponseCode = -1;
+
+		DynamicJsonDocument googleConnect(jsonCapacitygoogleConnect);
+
+		// Deserialize the JSON document and Test if parsing succeeds.
+		checkJsonError(deserializeJson(googleConnect, request.httpResponse));
+
+		url_google = googleConnect["verification_url"].as<String>();
+		user_code = googleConnect["user_code"].as<String>();
+		device_code = googleConnect["device_code"].as<String>();
+
+		Serial.println(url_google);
+		Serial.println(user_code);
+
+		// the content of the HTTP response follows the header:
+		page += "<a target=\"_blank\" href=\"" + url_google + "\"> Copie le code ci dessous puis clique ici pour s'authentifier à Google. </a><br>";
+		page += "<p> code à copier : " + user_code + "</p><br></br>";
+
+		server.send(200, "text/html", page);
+
+		delay(10000);
+
+		url = "client_id=" + client_id +
+				"&client_secret=" + client_secret +
+				"&device_code=" + device_code +
+				"&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code";
+
+		Serial.println(url);
+
+		request = httpPost("/token", url);
+
+		while (request.httpResponseCode != 200)
+		{
+			request = httpPost("/token", url);
+			//Serial.println(request.httpResponseCode);
+			delay(3000);
+		}
+
+		DynamicJsonDocument googleToken(jsonCapacityGoogleToken);
+
+		// Deserialize the JSON document and Test if parsing succeeds.
+		checkJsonError(deserializeJson(googleToken, request.httpResponse));
+
+		access_token = googleToken["access_token"].as<String>();
+		refresh_token = googleToken["refresh_token"].as<String>();
+		expire = googleToken["expires_in"].as<int>() * 1000;
+
+		//Serial.println(sizeof(refresh_token.c_str()));
+
+
+		if (SPIFFS.exists(DATA_JSON))
+			SPIFFS.remove(DATA_JSON);
+
+		File file = SPIFFS.open(DATA_JSON, "w+");
+
+		if (!file) {
+			Serial.print("Error with");
+			Serial.println(DATA_JSON);
+			ESP.restart();
+		}
+
+		String txt = "{ \"token\": \"" + refresh_token + "\"}";
+
+		DynamicJsonDocument jsonDataSave(jsonCapacityDataSave);
+
+		checkJsonError(deserializeJson(jsonDataSave, txt));
+
+		Serial.println(">>>> token : %s" + jsonDataSave["token"].as<String>());
+
+		if (serializeJson(jsonDataSave, file) == 0) {
+			Serial.println(F("Failed to write to file"));
+		}
+
+		startTimeExpire = millis();
+
+		Serial.println(access_token);
+		Serial.println(refresh_token);
+		Serial.println(expire);
+
+		// get the color
+
+		request = httpGet("https://www.googleapis.com/calendar/v3/colors?access_token=" + access_token);
+
+		//DynamicJsonDocument jsonColor(jsonCapacityJsonColor);
+
+		// Deserialize the JSON document and Test if parsing succeeds.
+		//checkJsonError(deserializeJson(jsonColor, request.httpResponse));
+
+		if (request.httpResponseCode != 200)
+		{
+			Serial.println("Error request colors");
+			return;
+		}
+
+		googleColor = request.httpResponse;
+
+		page += "<a href=\"/result\"> Clique ici pour voir les événements </a></br>";
+	}
+	else
+	{
+		page += "<p> Vous êtes bien connecté </p></br>";
+	}
+	page += "<a href=\"/\"> Retour page accueil </a></br>";
+
+	page += pageEnd;
+	server.send(200, "text/html", page);
+}
+
+
+// Update
+void handleUpdate()
+{
+	Serial.println("Update page");
+	String page = pageStart;
+	page += updateServer;
+	page += "<p><a href=\"/\"> Retour page accueil </a></p></br>";
+	
+	page += pageEnd;
+	server.send(200, "text/html", page);
+}
+
+void handleUpdatePost() {
+	HTTPUpload& upload = server.upload();
+	if (upload.status == UPLOAD_FILE_START) {
+		Serial.printf("Update: %s\n", upload.filename.c_str());
+		if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
+			Update.printError(Serial);
+		}
+	} else if (upload.status == UPLOAD_FILE_WRITE) {
+		// flashing firmware to ESP 
+		if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+			Update.printError(Serial);
+		}
+	} else if (upload.status == UPLOAD_FILE_END) {
+		if (Update.end(true)) { //true to set the size to the current progress
+			Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+		} else {
+			Update.printError(Serial);
+		}
+	}
+
+	server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    ESP.restart();
 }

@@ -22,20 +22,34 @@ String saveCalendars;
 
 String username = "";
 
+/*	   OTA		*/
+
+#include "ota.h"
+
 /* 	   CSS		*/
 
 #include "style.h"
 
 /*     Web      */
 
+#include <WebServer.h>
+
 WiFiManager wm; // global wm instance
 const char *ssid = "ESP32";
 
-WiFiServer server(80);
-String header;
+WebServer server(80);
 
-WiFiClient client;
+//WiFiClient client;
 HttpResponse request;
+
+void handleRoot();
+void handleResult();
+void handleChooseCalendar();
+void handleDisconnectGoogle();
+void handleDisconnect();
+void handleGoogle();
+void handleUpdate();
+void handleUpdatePost();
 
 
 
@@ -110,5 +124,21 @@ std::vector<struct subCalendar> listSubCalendar;
 
 // Define MaxDayInMonth
 const int maxDayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+
+/* Style CSS */
+
+const char* style_font_open_sans = "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\"><link href=\"https://fonts.googleapis.com/css2?family=Open+Sans&display=swap\" rel=\"stylesheet\">";
+
+const char * style_body = "style = ' font-family: open sans; '";
+
+const char * style_h1 = "style= ' color:blue; text-align:center; '";
+
+const char * style_h1_a = "style= ' text-decoration: none; color:inherit; '";
+
+const char * style_table = "style= 'width: 90%; '";
+
+const char * style_table_tr = "style= ' text-align: left; '";
+
 
 #endif
