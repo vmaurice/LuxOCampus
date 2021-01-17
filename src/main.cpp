@@ -956,7 +956,34 @@ void loop()
 								client.print("<p><a href=\"/google\"> Se connecter à google. </a></p></br>");
 							else
 							{
-								client.print("<p> Votre compte Google est " + username + "</p></br>");
+								client.print("<h2> Votre compte Google est " + username + "</h2></br>");
+								
+								// display current event
+								if (listColorCalendar.size() > 1) 
+									client.println("<h3>Les prochains événements affichés sont : </h3>");
+								else
+									client.println("<h3>Le prochain événement affiché est : </h3>");
+
+
+
+								if (listColorCalendar.size() == 0 or listColorCalendar[0].name == "rainbow") {
+									client.println("<p>Mode démo (Rainbow)</p>");
+								}
+								else {
+									client.print("<table " + (String)style_table + ">");
+									client.print("<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>");
+
+									for (auto value : listColorCalendar)
+									{
+										client.print("<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>");
+									}
+									client.print("</table>");
+
+								}
+
+								client.print("</br></br>");
+
+
 								client.print("<p> Notice</p>");
 								client.print("<p><a href=\"/result\"> Les prochains événements. </a></p>");
 								client.print("<p><a href=\"/choosecalendar\"> Modifier la sélection des sous calendiers du compte. </a></p></br></br>");
