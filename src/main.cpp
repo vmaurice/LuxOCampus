@@ -23,45 +23,18 @@ String googleColor;
 // Get events
 void getEvent()
 {
-	// print the events between 1 day before and 7 days after of calendar selected
+	// print the events between half day before and 7 days after of calendar selected
 
-	if (!getLocalTime(&dateTime))
-	{
-		Serial.println("Failed to obtain time");
-		return;
-	}
+	now = time(NULL);
 
-	dateMin = dateTime;
-	dateMax = dateTime;
+	dateMin = now - 3600 * 12;
+	dateMax = now + 3600 * 24 * 7;
 
-	dateMin.tm_mday -= 1;
-	dateMax.tm_mday += 7;
-
-	if (dateMin.tm_mday > maxDayInMonth[dateMin.tm_mon]) {
-		if (dateMin.tm_mon == 1) {
-			dateMin.tm_mday = 31;
-			dateMin.tm_mon = 12;
-			dateMin.tm_year -= 1;
-		} else {
-			dateMin.tm_mon -= 1;
-			dateMin.tm_mday = maxDayInMonth[dateMin.tm_mon];
-		}
-	}
-
-	if (dateMax.tm_mday > maxDayInMonth[dateMax.tm_mon]) {
-		dateMax.tm_mday = 1;
-		if (dateMax.tm_mon == 12) {
-			dateMax.tm_mon = 1;
-			dateMax.tm_year += 1;
-		}	
-		else
-			dateMax.tm_mon += 1;
-	}
 
 	// Convert struct tm to String
-	strftime(dateTimeChar, sizeof dateTimeChar, "%FT%TZ", &dateTime);
-	strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &dateMin);
-	strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &dateMax);
+	strftime(dateTimeChar, sizeof dateTimeChar, "%FT%TZ", localtime(&now));
+	strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", localtime(&dateMin));
+	strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", localtime(&dateMax));
 
 	//client.print("<p> Les événements de " + (String)dateTimeMin + " à " + (String)dateTimeMax + "</p></br>");
 
@@ -90,7 +63,7 @@ void getEvent()
 	for (JsonVariant value : jsonCalendarList["Calendar"].as<JsonArray>())
 	{
 		//Serial.println(value.as<String>());
-		request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=10&orderBy=startTime&singleEvents=True&timeMin=" + (String)dateTimeMin + "&timeMax=" + (String)dateTimeMax + "&access_token=" + access_token);
+		request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?&maxResults=" + maxResult + "&orderBy=startTime&singleEvents=True&timeMin=" + (String)dateTimeMin + "&timeMax=" + (String)dateTimeMax + "&access_token=" + access_token);
 		
 		if (request.httpResponseCode == 200)
 		{
@@ -106,6 +79,8 @@ void getEvent()
 			Serial.print(request.httpResponseCode);
 			Serial.print(" : ");
 			Serial.println(request.httpResponse);
+			if (request.httpResponseCode < 0)
+				ESP.restart();
 		}
 	}
 
@@ -161,11 +136,13 @@ void getEvent()
 			struct tm eventTime;
 			std::istringstream iss(value["start"]["dateTime"].as<char *>());
 			iss >> std::get_time(&eventTime, "%Y-%m-%dT%H:%M:%S");
-			myEvent.startDate = eventTime;
+			myEvent.startDate = mktime(&eventTime);
+			myEvent.stringStartDate = value["start"]["dateTime"].as<String>();
 
 			std::istringstream iss2(value["end"]["dateTime"].as<char *>());
 			iss2 >> std::get_time(&eventTime, "%Y-%m-%dT%H:%M:%S");
-			myEvent.endDate = eventTime;
+			myEvent.endDate = mktime(&eventTime);
+			myEvent.stringEndDate = value["end"]["dateTime"].as<String>();
 
 			myEvent.subCalendarName = cal["summary"].as<String>();
 
@@ -204,22 +181,32 @@ void colorCalendar()
 	{
 		for (auto subCal : listSubCalendar)
 		{
+			//Serial.println(now);
 			for (auto value : subCal.listEvents)
 			{
-				if (difftime(mktime(&dateTime), mktime(&value.startDate)) > 0 && difftime(mktime(&dateTime), mktime(&value.endDate)) < 0)
+				//Serial.print(value.name + " : ");
+				//Serial.print(value.startDate);
+				//Serial.print(" : ");
+				//Serial.println(value.endDate);
+				if (now >= value.startDate && now <= value.endDate)
 				{
 					listColorCalendar.push_back(value);
+					//Serial.println(value.name);
 				}
 			}
 		}
+
+		//Serial.println("");
+		//Serial.println("");
+
 		if (listColorCalendar.empty())
 		{
 			for (auto subCal : listSubCalendar)
 			{
 				for (auto value : subCal.listEvents)
 				{
-					if (difftime(mktime(&dateTime), mktime(&value.endDate)) <= 0) {
-						struct tm lastTime;
+					if (now < value.endDate) {
+						time_t lastTime;
 						if (listColorCalendar.empty())
 						{
 							lastTime = value.startDate;
@@ -227,7 +214,7 @@ void colorCalendar()
 						}
 						else 
 						{
-							int dif = difftime(mktime(&value.startDate), mktime(&dateTime)) - difftime(mktime(&lastTime), mktime(&dateTime));
+							int dif = (value.startDate - now) - (lastTime - now);
 							if (dif == 0)
 							{
 								//listColorCalendar.clear();
@@ -347,6 +334,9 @@ void setup()
 	//setenv("TZ", tz_info, 1);
 	configTzTime(tz_info, ntpServer);
 
+
+	
+
 	//start server
 	server.begin();
 	Serial.println("Server started");
@@ -419,6 +409,7 @@ void setup()
 	server.on("/disconnect", handleDisconnect);
 	server.on("/disconnect_google", handleDisconnectGoogle);
 	server.on("/google", handleGoogle);
+	server.on("/help", handleHelp);
 	server.on("/update", handleUpdate);
 	server.on("/update_post", HTTP_POST, []() {
     	server.sendHeader("Connection", "close");
@@ -553,6 +544,7 @@ void loop()
 		}
 
 		getEvent();
+		colorCalendar();
 		elapsedTime = millis();
 	}
 
@@ -588,6 +580,9 @@ String pageStart = "<!DOCTYPE html><html> \
 
 String pageEnd = "</body></html>";
 
+/*
+ * Index page
+ */
 void handleRoot() 
 {
 	String page = pageStart;
@@ -614,7 +609,7 @@ void handleRoot()
 
             for (auto value : listColorCalendar)
             {
-                page += "<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+                page += "<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + value.stringStartDate + "</td><td>" + value.stringEndDate + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
             }
             page += "</table>";
 
@@ -623,7 +618,7 @@ void handleRoot()
         page += "</br></br>";
 
 
-        page += "<p> Notice.</p>";
+        page += "<p><a href=\"/help\"> Aide. </a></p>";
         page += "<p><a href=\"/update\"> Update. </a></p>";
         page += "<p><a href=\"/result\"> Les prochains événements. </a></p>";
         page += "<p><a href=\"/choosecalendar\"> Modifier la sélection des sous calendiers du compte. </a></p></br></br>";
@@ -636,6 +631,10 @@ void handleRoot()
 	server.send(200, "text/html", page);
 }
 
+
+/*
+ * Result displayed
+ */
 void handleResult()
 {
 	String page = pageStart;
@@ -706,7 +705,7 @@ void handleResult()
 
 		page +="<p>Connecté avec le compte google : " + username + "</p>";
 
-		page +="<p>La dernière mise à jour le " + (String)dateTime.tm_mday + "-" + (String) (dateTime.tm_mon + 1) + "-" + (String) (dateTime.tm_year + 1900) + " à " + (String)dateTime.tm_hour + ":" + (String)dateTime.tm_min + ":" + (String)dateTime.tm_sec + "</p>";
+		page +="<p>La dernière mise à jour le " + (String)dateTimeChar + "</p>";
 		page +="<p>Les événements vont du " + (String)dateTimeMin + " à " + (String)dateTimeMax + "</p></br>";
 
 		page +="</br>";
@@ -729,7 +728,7 @@ void handleResult()
 
 			for (auto value : listColorCalendar)
 			{
-				page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+				page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + value.stringStartDate + "</td><td>" + value.stringEndDate + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
 			}
 			page +="</table>";
 
@@ -739,7 +738,7 @@ void handleResult()
 		
 
 
-		page +="<h2>L'ensemble des résultats pour chaque calendier sélectionné (max 10) : </h2>";
+		page +="<h2>L'ensemble des résultats pour chaque calendier sélectionné (max " + (String)maxResult + ") : </h2>";
 
 		if (listSubCalendar.empty()) 
 		{
@@ -758,12 +757,12 @@ void handleResult()
 
 				for (auto value : subCal.listEvents)
 				{
-					char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
-					strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
-					char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
-					strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
+					//char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
+					//strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
+					//char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
+					//strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
 					//page +="<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>";
-					page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + dateTimeMin + "</td><td>" + dateTimeMax + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+					page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + value.stringStartDate + "</td><td>" + value.stringEndDate + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
 				}
 
 				page +="</table>";
@@ -784,6 +783,9 @@ void handleResult()
 	server.send(200, "text/html", page);
 }
 
+/*
+ * Choose sub-calendars
+ */
 void handleChooseCalendar() 
 {
 	String page = pageStart;
@@ -867,7 +869,9 @@ void handleChooseCalendar()
 }
 
 
-// Disconnect of google account
+/*
+ * Disconnect of google account
+ */
 void handleDisconnectGoogle() 
 {
 	String page = pageStart;
@@ -886,7 +890,9 @@ void handleDisconnectGoogle()
 }
 
 
-// Disconnect the esp of box and restart
+/*
+ * Disconnect the esp of box and restart
+ */
 void handleDisconnect() 
 {
 	//Serial.println("flash esp32 and reboot");
@@ -897,7 +903,9 @@ void handleDisconnect()
 }
 
 
-// Connect to google
+/* 
+ * Connect to google
+ */
 void handleGoogle()
 {
 
@@ -1025,7 +1033,9 @@ void handleGoogle()
 }
 
 
-// Update
+/*
+ * Update
+ */
 void handleUpdate()
 {
 	Serial.println("Update page");
@@ -1061,4 +1071,25 @@ void handleUpdatePost() {
     } else {
 		Serial.println("Error update");
 	}
+}
+
+/*
+ * Notice page
+ */
+void handleHelp()
+{
+	String page = pageStart;
+
+	page += "<h2>Aide</h2>";
+
+	page += "<ul>";
+
+	page += "<li>Connection</li>";
+	page += "<li>Deconnecter</li>";
+	page += "<li>Redemarrer</li>";
+
+	page += "</ul>";
+
+	page += pageEnd;
+	server.send(200, "text/html", page);
 }

@@ -33,7 +33,7 @@ HttpResponse httpPost(String host, String url)
   request.httpResponseCode = 0;
   int n = 0;
 
-  while (request.httpResponseCode <= 0 && n < 3) {
+  while (request.httpResponseCode <= 0 && n < 5) {
     http.begin("https://oauth2.googleapis.com" + host);
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
@@ -44,7 +44,7 @@ HttpResponse httpPost(String host, String url)
       Serial.print("Error on sending POST: ");
       Serial.println(request.httpResponseCode);
 
-      delay(1000);
+      delay(5000);
     } else {
       request.httpResponse = http.getString(); //Get the response to the request
     }
@@ -67,7 +67,7 @@ HttpResponse httpGet(String url)
   request.httpResponseCode = 0;
   int n = 0;
 
-  while (request.httpResponseCode <= 0 && n < 3) {
+  while (request.httpResponseCode <= 0 && n < 5) {
 
     http.begin(url);
 
@@ -77,7 +77,7 @@ HttpResponse httpGet(String url)
       Serial.print("Error on sending GET: ");
       Serial.println(request.httpResponseCode);
       
-      delay(1000);
+      delay(5000);
     }
     else {
       request.httpResponse = http.getString(); //Get the response to the request

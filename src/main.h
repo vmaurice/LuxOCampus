@@ -22,6 +22,8 @@ String saveCalendars;
 
 String username = "";
 
+int maxResult = 8;
+
 /*	   OTA		*/
 
 #include "ota.h"
@@ -50,6 +52,7 @@ void handleDisconnect();
 void handleGoogle();
 void handleUpdate();
 void handleUpdatePost();
+void handleHelp();
 
 
 
@@ -63,16 +66,16 @@ void handleUpdatePost();
 #include <sstream>
 #include <iomanip>
 
-const char *ntpServer = "0.fr.pool.ntp.org";
+const char *ntpServer = "pool.ntp.org";
 //const long gmtOffset_sec = 0;
 //const int daylightOffset_sec = 0;
 const char *tz_info = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; // https://remotemonitoringsystems.ca/time-zone-abbreviations.php
 
 
 // DateTime instant
-struct tm dateTime;
-struct tm dateMin;
-struct tm dateMax;
+time_t now;
+time_t dateMin;
+time_t dateMax;
 char dateTimeChar[sizeof "2011-10-08T07:07:09Z"];
 char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
 char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
@@ -106,8 +109,10 @@ struct event
 	String name;
 	String id;
 	String color;
-	struct tm startDate;
-	struct tm endDate;
+	time_t startDate;
+	time_t endDate;
+	String stringStartDate;
+	String stringEndDate;
 	String subCalendarName;
 };
 
