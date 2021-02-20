@@ -1326,8 +1326,23 @@ void WiFiManager::handleNotice(){  // by vmaurice
   handleRequest();
   String page = getHTTPHead(FPSTR(S_options)); // @token options
 
+  String mac = WiFi.macAddress(); 
+
   
   page += FPSTR(HTTP_FORM_NOTICE);
+
+  page += "<p>Bienvenue sur le portal pour connecter le calendrier à votre box Internet.</p>";
+
+  page += "<ol>";
+
+  page += "<li>Mennissez-vous du nom de votre box internet et de son mot de passe.</li>";
+  page += "<li>Allez dans l'onglet \"<a href=\"/wifi\">Configure Wifi\".</a> ";
+  page += "<li>Cliquez en haut sur le nom de votre Wi-Fi. S'il n'est pas présent cliquez sur \"Refresh\".</li>";
+  page += "<li>Une fois le mot de passe rentré, cliquez sur \"Save\", le calendrier redémarre, connectez votre téléphone ou votre ordinateur sur la même box internet et taper dans l'URL de votre navigateur : \"http://luxocampus-" + mac.substring(12,14) + mac.substring(15,17) + ".local\". Si cela ne fonctionne pas débranché et rebranché le calendrier.</li>";
+  page += "<li>Si le problème persiste changé de navigateur de préférence Chrome ou Firefox. Ou bien vérifiez sur votre téléphone ou ordinateur qu'il n'y a plus dans votre gestionnaire Wi-Fi le nom du calendrier (\"LuxOCampus-" + mac.substring(12,14) + mac.substring(15,17) + "\").</li>";
+  page += "<li>Les étapes suivantes seront expliqués dans la page web du calendrier connecté.</li>";
+
+  page += "</ol>";
 
   page += FPSTR(HTTP_END);
   server->sendHeader(FPSTR(HTTP_HEAD_CL), String(page.length()));

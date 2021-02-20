@@ -312,19 +312,7 @@ void setup()
 	// set configrportal timeout
 	wm.setConfigPortalTimeout(900);
 
-
-	if (!wm.autoConnect(ssid))
-	{
-		delay(1000);
-		Serial.println("Failed to connect");
-        ESP.restart();
-	}
-
-
-	//if you get here you have connected to the WiFi
-	Serial.println("connected...yeey :)");
-
-	localname = "luxocampus-";
+	localname = "LuxOCampus-";
 	
 	String mac = WiFi.macAddress();
 
@@ -335,6 +323,20 @@ void setup()
 	Serial.println(mac);
 	Serial.print("local address : ");
 	Serial.println(localname.c_str());
+
+
+	if (!wm.autoConnect(localname.c_str()))
+	{
+		delay(1000);
+		Serial.println("Failed to connect");
+        ESP.restart();
+	}
+
+
+	//if you get here you have connected to the WiFi
+	Serial.println("connected...yeey :)");
+
+	
 
 	if (!MDNS.begin(localname.c_str()))
 	{
@@ -765,20 +767,25 @@ void handleResult()
 			{
 				page +="<h3>" + username + "/" + subCal.name + " : </h3>";
 
-				page +="<table " + (String)style_table + ">";
-				page +="<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>";
+				if (subCal.listEvents.size() != 0) {
 
-				for (auto value : subCal.listEvents)
-				{
-					//char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
-					//strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
-					//char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
-					//strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
-					//page +="<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>";
-					page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + value.stringStartDate + "</td><td>" + value.stringEndDate + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+					page +="<table " + (String)style_table + ">";
+					page +="<tr " + (String)style_table_tr + "><th>Nom</th><th>Début</th><th>Fin</th><th>Couleur</th><th>Id</th></tr>";
+
+					for (auto value : subCal.listEvents)
+					{
+						//char dateTimeMin[sizeof "2011-10-08T07:07:09Z"];
+						//strftime(dateTimeMin, sizeof dateTimeMin, "%FT%TZ", &value.startDate);
+						//char dateTimeMax[sizeof "2011-10-08T07:07:09Z"];
+						//strftime(dateTimeMax, sizeof dateTimeMax, "%FT%TZ", &value.endDate);
+						//page +="<p style='color: " + value.color + "'>" + value.name + " de " + dateTimeMin + " à " + dateTimeMax + ", colorId =  " + value.color + ", id = " + value.id + "</p>";
+						page +="<tr style='color: " + value.color + "'><td>" + value.name + "</td><td>" + value.stringStartDate + "</td><td>" + value.stringEndDate + "</td><td>" + value.color + "</td><td>" + value.id + "</td></tr>";
+					}
+
+					page +="</table>";
+				} else {
+					page += "<p>Aucun résultat</p>";
 				}
-
-				page +="</table>";
 			}
 		}
 
