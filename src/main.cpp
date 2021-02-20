@@ -430,7 +430,7 @@ void setup()
 		ESP.restart();
 		}, handleUpdatePost);
 
-	server.onNotFound(handleRoot);
+	server.onNotFound(handleNotFound);
 
 	server.begin();
 }
@@ -600,10 +600,10 @@ void handleRoot()
 {
 	String page = pageStart;
     if (access_token.isEmpty())
-        page += "<p><a href=\"/google\"> Se connecter à google. </a></p></br>";
+        page += "<p><a href=\"/google\">Cliquez-ici pour vous connectez avec votre compte Google.</a></p></br>";
     else
     {
-        page += "<h2> Votre compte Google est " + username + "</h2></br>";
+        page += "<h2>Votre compte Google est " + username + "</h2></br>";
         
         // display current event
         if (listColorCalendar.size() > 1) 
@@ -654,7 +654,7 @@ void handleResult()
 	
 	if (access_token == "")
 	{
-		page +="<p>Aucun compte google</p>";
+		page +="<p>Aucun compte google.</p>";
 	}
 	else
 	{
@@ -895,8 +895,10 @@ void handleDisconnectGoogle()
 	listColorCalendar.clear();
 	listColorCalendar.push_back(rainbow);
 	selectCalendars.clear();
-	page += "<p>Le compte Google a bien été enlevé</p>";
+	page += "<p>Le compte Google a bien été enlevé.</p>";
 	page += "<p><a href=\"/\"> Retour page accueil </a></p></br>";
+
+	username = "";
 	
 	page += pageEnd;
 	server.send(200, "text/html", page);
@@ -950,8 +952,10 @@ void handleGoogle()
 		Serial.println(user_code);
 
 		// the content of the HTTP response follows the header:
-		page += "<a target=\"_blank\" href=\"" + url_google + "\"> Copie le code ci dessous puis clique ici pour s'authentifier à Google. </a><br>";
-		page += "<p> code à copier : " + user_code + "</p><br></br>";
+		page += "<p>Pour vous connectez, menissez-vous de votre compte Google, du code à copier (ci-dessous) afin d'autoriser l'appareillage de votre compte Google et du calendrier connecté. Suivez les étapes de Google. Google n'a pas validé notre application étant donnée que c'est un petit projet. Il n'y a aucun risque. Autorisez l'accès au projet luxOCampus et vous serez connectés. Aucune donnée n'est collectée ou utilisée à des fins commerciales. Nous respectons votre vie privée.</p>";
+
+		page += "<a target=\"_blank\" href=\"" + url_google + "\">Copiez le code ci-dessous puis cliquez-ici pour s'authentifier à Google. </a><br>";
+		page += "<p>code à copier : " + user_code + "</p><br></br>";
 
 		server.send(100, "text/html", page);
 
@@ -1016,6 +1020,32 @@ void handleGoogle()
 		Serial.println(refresh_token);
 		Serial.println(expire);
 
+		// get nname google account
+
+		request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
+
+		while (request.httpResponseCode != 200) {
+			delay(2000);
+			request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
+		}
+			
+		DynamicJsonDocument jsonCalendarList(jsonCapacityCalendarList);
+
+		// Deserialize the JSON document and Test if parsing succeeds.
+		checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
+
+		arrayCalendarList.clear();
+
+		for (JsonVariant value : jsonCalendarList["items"].as<JsonArray>())
+		{
+			if (value["summary"] == value["id"]) {
+				username = value["summary"].as<String>();
+				break;
+			}
+		}
+
+
+
 		// get the color
 
 		request = httpGet("https://www.googleapis.com/calendar/v3/colors?access_token=" + access_token);
@@ -1033,7 +1063,8 @@ void handleGoogle()
 
 		googleColor = request.httpResponse;
 
-		page += "<a href=\"/result\"> Clique ici pour voir les événements </a></br>";
+		page += "<p>Vous êtes connectés avec votre compte : " + username + ".<p>";
+		page += "<a href=\"/result\">Cliquez-ici pour voir les prochains événements.</a></br>";
 	}
 	else
 	{
@@ -1094,16 +1125,50 @@ void handleHelp()
 {
 	String page = pageStart;
 
-	page += "<h2>Aide</h2>";
+	page += "<h3>Aides</h3>";
+
+	if (access_token.isEmpty()) {
+		page += "<p>Vous n'êtes pas connectés</p>";
+	} else {
+		page += "<ul>";
+
+		page += "<li>Vous êtes actuellement connectés avec votre compte : " + username + ".</li>";
+		page += "<li>Pour changer de compte ou vous déconnectez, <a href=\"/disconnect_google\">cliquez-ici</a>.</li>";
+		page += "<li>Pour supprimez les sous-calendriers et passer au mode démo (rainbow), <a href=\"result?demo=on\">cliquez-ici</a>.</li>";
+		page += "<li>Pour un problème mineur, débrancher et rebrancher la calendrier luxOCampus.</li>";
+		page += "<li>Si le problème persiste, réinitialiser le calendrier luxOCampus. Notez-bien que le calendrier ne sera plus connecté à votre box Internet ni à votre compte Google. Il faudra depuis un téléphone ou un ordinateur vous connecter en WiFi sur le calendrier. Vous retrouverez le calendrier sous le nom de \"" + localname.substring(0,15) + "\". Une fois connecté, une page web s'ouvre pour paramétrer le calendrier mais si ce n'est pas le cas. Ouvrez un navigateur web et entrez l'adresse IP \"192.168.4.1\" dans la barre URL afin de pouvoir paramétrer le calendrier à votre box. La suite des procédures sont expliquées dans cette page, onglet Notice. Pour réinitialiser, <a href=\"/disconnect\">cliquez-ici</a>.</li>";
+
+		page += "</ul>";
+	}
+
+	page += "<h3>Informations</h3>";
 
 	page += "<ul>";
 
-	page += "<li>Connection</li>";
-	page += "<li>Deconnecter</li>";
-	page += "<li>Redemarrer</li>";
+	page += "<li>URL : http://" + localname + ".local/</li>";
+	page += "<li>Adresse IP : " + WiFi.localIP().toString() + "</li>";
+	page += "<li>Adresse MAC : " + WiFi.macAddress() +  "</li>";
+	page += "<li>Version système : " + (String)version + "</li>";
 
 	page += "</ul>";
 
+	page += "<a href=\"/\"> Retour page accueil </a></br>";
+
 	page += pageEnd;
 	server.send(200, "text/html", page);
+}
+
+/*
+ * Handle Not Found, error 404
+ */
+void handleNotFound()
+{
+	String page = pageStart;
+
+	page += "<h3>Page non trouvé, (erreur 404)</h3></br>";
+
+	page += "<a href=\"/\"> Retour page accueil </a>";
+
+	page += pageEnd;
+	server.send(404, "text/html", page);
 }

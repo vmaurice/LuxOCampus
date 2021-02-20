@@ -54,6 +54,7 @@ void handleGoogle();
 void handleUpdate();
 void handleUpdatePost();
 void handleHelp();
+void handleNotFound();
 
 
 
