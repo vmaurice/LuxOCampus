@@ -20,6 +20,7 @@ String saveCalendars;
 #include <map>
 #include <vector>
 
+String localname = "";
 String username = "";
 
 int maxResult = 8;

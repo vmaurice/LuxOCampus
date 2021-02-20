@@ -28,7 +28,7 @@ void getEvent()
 	now = time(NULL);
 
 	dateMin = now - 3600 * 12;
-	dateMax = now + 3600 * 24 * 7;
+	dateMax = now + 3600 * 24 * 15;
 
 
 	// Convert struct tm to String
@@ -201,12 +201,12 @@ void colorCalendar()
 
 		if (listColorCalendar.empty())
 		{
+			time_t lastTime = now;
 			for (auto subCal : listSubCalendar)
 			{
 				for (auto value : subCal.listEvents)
 				{
 					if (now < value.endDate) {
-						time_t lastTime;
 						if (listColorCalendar.empty())
 						{
 							lastTime = value.startDate;
@@ -323,7 +323,20 @@ void setup()
 
 	//if you get here you have connected to the WiFi
 	Serial.println("connected...yeey :)");
-	if (!MDNS.begin("esp32"))
+
+	localname = "luxocampus-";
+	
+	String mac = WiFi.macAddress();
+
+	localname += mac.substring(12,14);
+	localname += mac.substring(15,17);
+
+	Serial.print("MAC address : ");
+	Serial.println(mac);
+	Serial.print("local address : ");
+	Serial.println(localname.c_str());
+
+	if (!MDNS.begin(localname.c_str()))
 	{
 		Serial.println("Error setting up MDNS responder!");
 		return;
@@ -1040,6 +1053,7 @@ void handleUpdate()
 {
 	Serial.println("Update page");
 	String page = pageStart;
+	page += "<p>Version actuelle : " + (String)version + "</p>";
 	page += updateServer;
 	page += "<p><a href=\"/\"> Retour page accueil </a></p></br>";
 	
