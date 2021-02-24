@@ -557,6 +557,27 @@ void loop()
 			selectCalendars += " ] }";
 			//Serial.println(selectCalendars);
 		}
+		else if (username.isEmpty()) {
+			// Get name of account Google
+
+			request = httpGet("https://www.googleapis.com/calendar/v3/users/me/calendarList?access_token=" + access_token);
+
+			DynamicJsonDocument jsonCalendarList(jsonCapacityCalendarList);
+
+			// Deserialize the JSON document and Test if parsing succeeds.
+			checkJsonError(deserializeJson(jsonCalendarList, request.httpResponse));
+
+
+			for (JsonVariant value : jsonCalendarList["items"].as<JsonArray>())
+			{
+				request = httpGet("https://www.googleapis.com/calendar/v3/calendars/" + value["id"].as<String>() + "/events?maxResults=1&access_token=" + access_token);
+				if (request.httpResponseCode == 200 && value["summary"] == value["id"]) {
+					username = value["summary"].as<String>();
+					break;
+				}
+					
+			}
+		}
 
 		getEvent();
 		colorCalendar();
@@ -601,9 +622,11 @@ String pageEnd = "</body></html>";
 void handleRoot() 
 {
 	String page = pageStart;
-    if (access_token.isEmpty())
+    if (access_token.isEmpty()) {
         page += "<p><a href=\"/google\">Cliquez-ici pour vous connectez avec votre compte Google.</a></p></br>";
-    else
+		page += "<p><a href=\"/help\"> Aide. </a></p>";
+        page += "<p><a href=\"/update\"> Mise à jour. </a></p>";
+	} else
     {
         page += "<h2>Votre compte Google est " + username + "</h2></br>";
         
@@ -633,10 +656,12 @@ void handleRoot()
         page += "</br></br>";
 
 
-        page += "<p><a href=\"/help\"> Aide. </a></p>";
-        page += "<p><a href=\"/update\"> Update. </a></p>";
+        
         page += "<p><a href=\"/result\"> Les prochains événements. </a></p>";
         page += "<p><a href=\"/choosecalendar\"> Modifier la sélection des sous calendiers du compte. </a></p></br></br>";
+
+		page += "<p><a href=\"/help\"> Aide. </a></p>";
+        page += "<p><a href=\"/update\"> Mise à jour. </a></p>";
         page += "<p><a href=\"/disconnect_google\"> Se déconnecter du compte google.</a></p>";
     }
     page += "<p><a href=\"/disconnect\"> Se déconnecter de la borne wifi et redémarrer sur le portail captif. </a></p";
@@ -1089,7 +1114,7 @@ void handleGoogle()
  */
 void handleUpdate()
 {
-	Serial.println("Update page");
+	//Serial.println("Update page");
 	String page = pageStart;
 	page += "<p>Version actuelle : " + (String)version + "</p>";
 	page += updateServer;
@@ -1135,7 +1160,9 @@ void handleHelp()
 	page += "<h3>Aides</h3>";
 
 	if (access_token.isEmpty()) {
-		page += "<p>Vous n'êtes pas connectés</p>";
+		page += "<p>Vous n'êtes pas connectés.</p>";
+		page += "<p>Pour vous connecter avec votre compte Google, <a href=\"/google\">cliquez-ici</a>.</p>";
+		page += "<p>Pour réinitialiser le calendrier luxOCampus ou changer de box internet. Notez-bien que le calendrier ne sera plus connecté à votre box Internet. Il faudra depuis un téléphone ou un ordinateur vous connecter en WiFi sur le calendrier. Vous retrouverez le calendrier sous le nom de \"" + localname.substring(0,15) + "\". Une fois connecté, une page web s'ouvre pour paramétrer le calendrier mais si ce n'est pas le cas. Ouvrez un navigateur web et entrez l'adresse IP \"192.168.4.1\" dans la barre URL afin de pouvoir paramétrer le calendrier à votre box. La suite des procédures sont expliquées dans cette page, onglet Notice. Pour réinitialiser, <a href=\"/disconnect\">cliquez-ici</a>.</p>";
 	} else {
 		page += "<ul>";
 
@@ -1148,7 +1175,19 @@ void handleHelp()
 		page += "</ul>";
 	}
 
-	page += "<h3>Informations</h3>";
+	page += "<h3>Mise à jour</h3>";
+
+	page += "<ol>";
+
+	page += "<li>Pour mettre à jour ou changer de version, allez sur le site : ....</li>";
+	page += "<li>Téléchargez la version souhaitée.</li>";
+	page += "<li>Rendez-vous sur la <a href=\"/update\">page mise à jour</a> du calendrier</li>";
+	page += "<li>Importez la fichier binaire (.bin) puis cliquez sur le bouton validé.</li>";
+	page += "<li>Le calendrier redémarre automatiquement sur la nouvelle version.</li>";
+
+	page += "</ol>";
+
+	page += "<h3>Informations système</h3>";
 
 	page += "<ul>";
 
