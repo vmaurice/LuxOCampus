@@ -782,7 +782,7 @@ void handleResult()
 
 		if (listSubCalendar.empty()) 
 		{
-			page +="<p><a href=\"/choosecalendar\">Aucun sous-calendrier sélectionné, cliquez ici pour les sélectionner.</a></p>";
+			page +="<p><a href=\"/choosecalendar\">Aucun sous-calendrier sélectionné, cliquez-ici pour les sélectionner.</a></p>";
 		}
 		else 
 		{
@@ -984,7 +984,7 @@ void handleGoogle()
 		Serial.println(user_code);
 
 		// the content of the HTTP response follows the header:
-		page += "<p>Pour vous connectez, menissez-vous de votre compte Google, du code à copier (ci-dessous) afin d'autoriser l'appareillage de votre compte Google et du calendrier connecté. Suivez les étapes de Google. Google n'a pas validé notre application étant donnée que c'est un petit projet. Il n'y a aucun risque. Autorisez l'accès au projet luxOCampus et vous serez connectés. Aucune donnée n'est collectée ou utilisée à des fins commerciales. Nous respectons votre vie privée.</p>";
+		page += "<p>Pour vous connecter, munissez-vous de votre compte Google, du code à copier (ci-dessous) afin d'autoriser l'appareillage de votre compte Google avec le calendrier connecté. Suivez les étapes de Google. Google n'a pas validé notre application étant donnée que c'est un petit projet. Il n'y a aucun risque. Autorisez l'accès au projet luxOCampus et vous serez connectés. Seules les données de votre calendrier Google sont collectées. Les données reçues restent au sein du calendrier connecté. Nous respectons votre vie privée.</p>";
 
 		page += "<a target=\"_blank\" href=\"" + url_google + "\">Copiez le code ci-dessous puis cliquez-ici pour s'authentifier à Google. </a><br>";
 		page += "<p>code à copier : " + user_code + "</p><br></br>";
@@ -1162,15 +1162,15 @@ void handleHelp()
 	if (access_token.isEmpty()) {
 		page += "<p>Vous n'êtes pas connectés.</p>";
 		page += "<p>Pour vous connecter avec votre compte Google, <a href=\"/google\">cliquez-ici</a>.</p>";
-		page += "<p>Pour réinitialiser le calendrier luxOCampus ou changer de box internet. Notez-bien que le calendrier ne sera plus connecté à votre box Internet. Il faudra depuis un téléphone ou un ordinateur vous connecter en WiFi sur le calendrier. Vous retrouverez le calendrier sous le nom de \"" + localname.substring(0,15) + "\". Une fois connecté, une page web s'ouvre pour paramétrer le calendrier mais si ce n'est pas le cas. Ouvrez un navigateur web et entrez l'adresse IP \"192.168.4.1\" dans la barre URL afin de pouvoir paramétrer le calendrier à votre box. La suite des procédures sont expliquées dans cette page, onglet Notice. Pour réinitialiser, <a href=\"/disconnect\">cliquez-ici</a>.</p>";
+		page += "<p>Pour réinitialiser le calendrier luxOCampus ou changer de box internet. Notez-bien que le calendrier ne sera plus connecté à votre box Internet. Il faudra depuis un téléphone ou un ordinateur vous connecter en WiFi sur le calendrier. Vous retrouverez le calendrier sous le nom de \"" + localname.substring(0,15) + "\". Une fois connecté, une page web s'ouvre pour paramétrer le calendrier mais si ce n'est pas le cas. Ouvrez un navigateur web et entrez l'adresse IP \"192.168.4.1\" dans la barre URL afin de pouvoir paramétrer le calendrier à votre box. La suite des procédures sont expliquées dans l'onglet Notice. Pour réinitialiser, <a href=\"/disconnect\">cliquez-ici</a>.</p>";
 	} else {
 		page += "<ul>";
 
 		page += "<li>Vous êtes actuellement connectés avec votre compte : " + username + ".</li>";
 		page += "<li>Pour changer de compte ou vous déconnectez, <a href=\"/disconnect_google\">cliquez-ici</a>.</li>";
-		page += "<li>Pour supprimez les sous-calendriers et passer au mode démo (rainbow), <a href=\"result?demo=on\">cliquez-ici</a>.</li>";
-		page += "<li>Pour un problème mineur, débrancher et rebrancher la calendrier luxOCampus.</li>";
-		page += "<li>Si le problème persiste, réinitialiser le calendrier luxOCampus. Notez-bien que le calendrier ne sera plus connecté à votre box Internet ni à votre compte Google. Il faudra depuis un téléphone ou un ordinateur vous connecter en WiFi sur le calendrier. Vous retrouverez le calendrier sous le nom de \"" + localname.substring(0,15) + "\". Une fois connecté, une page web s'ouvre pour paramétrer le calendrier mais si ce n'est pas le cas. Ouvrez un navigateur web et entrez l'adresse IP \"192.168.4.1\" dans la barre URL afin de pouvoir paramétrer le calendrier à votre box. La suite des procédures sont expliquées dans cette page, onglet Notice. Pour réinitialiser, <a href=\"/disconnect\">cliquez-ici</a>.</li>";
+		page += "<li>Pour supprimer les sous-calendriers et passer au mode démo (rainbow), <a href=\"result?demo=on\">cliquez-ici</a>.</li>";
+		page += "<li>Pour un problème mineur, débrancher et rebrancher le calendrier luxOCampus.</li>";
+		page += "<li>Si le problème persiste, réinitialisez le calendrier luxOCampus. Notez-bien que le calendrier ne sera plus connecté à votre box Internet ni à votre compte Google. Il faudra depuis un téléphone ou un ordinateur vous connecter en Wi-Fi sur le calendrier. Vous retrouverez le calendrier sous le nom de \"" + localname.substring(0,15) + "\". Une fois connecté, une page web s'ouvre pour paramétrer le calendrier mais si ce n'est pas le cas. Ouvrez un navigateur web et entrez l'adresse IP \"192.168.4.1\" dans la barre URL afin de pouvoir paramétrer le calendrier à votre box. La suite des procédures sont expliquées dans l'onglet Notice. Pour réinitialiser, <a href=\"/disconnect\">cliquez-ici</a>.</li>";
 
 		page += "</ul>";
 	}
@@ -1181,7 +1181,7 @@ void handleHelp()
 
 	page += "<li>Pour mettre à jour ou changer de version, allez sur le site : ....</li>";
 	page += "<li>Téléchargez la version souhaitée.</li>";
-	page += "<li>Rendez-vous sur la <a href=\"/update\">page mise à jour</a> du calendrier</li>";
+	page += "<li>Rendez-vous sur la <a href=\"/update\">page mise à jour</a> du calendrier.</li>";
 	page += "<li>Importez la fichier binaire (.bin) puis cliquez sur le bouton validé.</li>";
 	page += "<li>Le calendrier redémarre automatiquement sur la nouvelle version.</li>";
 
